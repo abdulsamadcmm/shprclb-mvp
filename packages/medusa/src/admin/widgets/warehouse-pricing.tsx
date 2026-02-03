@@ -218,6 +218,10 @@ const WarehousePricingWidget = ({ data }: { data: { id: string } }) => {
     return `${tier.min_quantity}-${tier.max_quantity} units`
   }
 
+  const calculateDiscount = (basePrice: number, tierPrice: number) => {
+    return ((basePrice - tierPrice) / basePrice) * 100
+  }
+
   if (loading) {
     return (
       <Container className="p-4">
@@ -330,6 +334,7 @@ const WarehousePricingWidget = ({ data }: { data: { id: string } }) => {
           {prices.map((price) => {
             const priceTiers = tiers[price.id] || []
             const isExpanded = expandedPrice === price.id
+            const sortedTiers = [...priceTiers].sort((a, b) => a.min_quantity - b.min_quantity)
 
             return (
               <div
@@ -353,7 +358,9 @@ const WarehousePricingWidget = ({ data }: { data: { id: string } }) => {
                       </Text>
                     </div>
                     {priceTiers.length > 0 && (
-                      <Badge color="blue">{priceTiers.length} tier{priceTiers.length > 1 ? "s" : ""}</Badge>
+                      <Badge color="green">
+                        {priceTiers.length} volume tier{priceTiers.length > 1 ? "s" : ""}
+                      </Badge>
                     )}
                   </div>
                   <div className="flex items-center gap-3">
@@ -368,85 +375,162 @@ const WarehousePricingWidget = ({ data }: { data: { id: string } }) => {
                 {isExpanded && (
                   <div className="p-4 border-t bg-white">
                     <div className="mb-3">
-                      <Text className="font-medium text-sm mb-2">Quantity Pricing Tiers</Text>
+                      <Text className="font-medium text-sm mb-2">Quantity-Based Pricing Tiers</Text>
                       <Text className="text-xs text-gray-500">
-                        Base price applies when no tier matches. Add tiers for volume discounts.
+                        Base price ({formatPrice(price.base_price, price.currency_code)}) applies for quantities below the first tier. 
+                        Add tiers to offer volume discounts.
                       </Text>
                     </div>
 
-                    {/* Existing Tiers */}
-                    {priceTiers.length > 0 && (
-                      <div className="mb-4 space-y-2">
-                        {priceTiers.map((tier, idx) => (
-                          <div
-                            key={tier.id}
-                            className="flex items-center justify-between p-2 bg-gray-50 rounded"
-                          >
-                            <div className="flex items-center gap-4">
-                              <Text className="text-sm font-medium">
-                                {formatTierRange(tier)}
-                              </Text>
-                              <Text className="text-sm">
-                                {formatPrice(tier.unit_price, price.currency_code)}/unit
-                              </Text>
-                            </div>
-                            <Button
-                              size="small"
-                              variant="secondary"
-                              onClick={() => handleDeleteTier(price.id, idx)}
-                            >
-                              Remove
-                            </Button>
-                          </div>
-                        ))}
+                    {/* Existing Tiers Table */}
+                    {sortedTiers.length > 0 && (
+                      <div className="mb-4 overflow-hidden rounded-lg border">
+                        <table className="w-full text-sm">
+                          <thead>
+                            <tr className="bg-gray-50">
+                              <th className="px-3 py-2 text-left font-medium">Quantity Range</th>
+                              <th className="px-3 py-2 text-right font-medium">Unit Price</th>
+                              <th className="px-3 py-2 text-right font-medium">Discount</th>
+                              <th className="px-3 py-2 text-right font-medium">Savings/Unit</th>
+                              <th className="px-3 py-2 text-right font-medium"></th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {sortedTiers.map((tier, idx) => {
+                              const discount = calculateDiscount(price.base_price, tier.unit_price)
+                              const savedPerUnit = price.base_price - tier.unit_price
+                              
+                              return (
+                                <tr key={tier.id} className="border-t">
+                                  <td className="px-3 py-2 font-medium">
+                                    {formatTierRange(tier)}
+                                  </td>
+                                  <td className="px-3 py-2 text-right">
+                                    {formatPrice(tier.unit_price, price.currency_code)}
+                                  </td>
+                                  <td className="px-3 py-2 text-right">
+                                    <Badge color="green">
+                                      {discount.toFixed(1)}% off
+                                    </Badge>
+                                  </td>
+                                  <td className="px-3 py-2 text-right text-green-600">
+                                    {formatPrice(savedPerUnit, price.currency_code)}
+                                  </td>
+                                  <td className="px-3 py-2 text-right">
+                                    <Button
+                                      size="small"
+                                      variant="secondary"
+                                      onClick={(e) => {
+                                        e.stopPropagation()
+                                        handleDeleteTier(price.id, idx)
+                                      }}
+                                    >
+                                      Remove
+                                    </Button>
+                                  </td>
+                                </tr>
+                              )
+                            })}
+                          </tbody>
+                        </table>
+                      </div>
+                    )}
+
+                    {/* Preview: Example pricing for common quantities */}
+                    {sortedTiers.length > 0 && (
+                      <div className="mb-4 p-3 bg-blue-50 rounded-lg">
+                        <Text className="text-xs font-medium text-blue-800 mb-2">
+                          Example: Customer ordering different quantities
+                        </Text>
+                        <div className="grid grid-cols-3 gap-2 text-xs">
+                          {[1, 10, 50, 100].map((qty) => {
+                            let effectivePrice = price.base_price
+                            for (const tier of sortedTiers) {
+                              if (qty >= tier.min_quantity && (tier.max_quantity === null || qty <= tier.max_quantity)) {
+                                effectivePrice = tier.unit_price
+                                break
+                              }
+                            }
+                            const total = effectivePrice * qty
+                            const discount = calculateDiscount(price.base_price, effectivePrice)
+                            
+                            return (
+                              <div key={qty} className="bg-white p-2 rounded border">
+                                <Text className="font-medium text-blue-900">{qty} units</Text>
+                                <Text className="text-gray-600">
+                                  {formatPrice(effectivePrice, price.currency_code)}/unit
+                                </Text>
+                                <Text className="text-gray-900 font-medium">
+                                  Total: {formatPrice(total, price.currency_code)}
+                                </Text>
+                                {discount > 0 && (
+                                  <Text className="text-green-600 text-xs">
+                                    ({discount.toFixed(1)}% off)
+                                  </Text>
+                                )}
+                              </div>
+                            )
+                          })}
+                        </div>
                       </div>
                     )}
 
                     {/* Add Tier Form */}
-                    <div className="grid grid-cols-4 gap-2 items-end">
-                      <div>
-                        <Label className="text-xs">Min Qty</Label>
-                        <Input
-                          type="number"
-                          min="1"
-                          value={tierForm.min_quantity}
-                          onChange={(e) =>
-                            setTierForm({ ...tierForm, min_quantity: e.target.value })
-                          }
-                          placeholder="10"
-                        />
+                    <div className="p-3 bg-gray-50 rounded-lg">
+                      <Text className="text-xs font-medium mb-2">Add New Pricing Tier</Text>
+                      <div className="grid grid-cols-4 gap-2 items-end">
+                        <div>
+                          <Label className="text-xs">Min Qty</Label>
+                          <Input
+                            type="number"
+                            min="1"
+                            value={tierForm.min_quantity}
+                            onChange={(e) =>
+                              setTierForm({ ...tierForm, min_quantity: e.target.value })
+                            }
+                            placeholder="e.g. 10"
+                          />
+                        </div>
+                        <div>
+                          <Label className="text-xs">Max Qty (blank = unlimited)</Label>
+                          <Input
+                            type="number"
+                            min="1"
+                            value={tierForm.max_quantity}
+                            onChange={(e) =>
+                              setTierForm({ ...tierForm, max_quantity: e.target.value })
+                            }
+                            placeholder="e.g. 49"
+                          />
+                        </div>
+                        <div>
+                          <Label className="text-xs">Unit Price ({price.currency_code})</Label>
+                          <Input
+                            type="number"
+                            step="0.01"
+                            value={tierForm.unit_price}
+                            onChange={(e) =>
+                              setTierForm({ ...tierForm, unit_price: e.target.value })
+                            }
+                            placeholder="e.g. 90.00"
+                          />
+                          {tierForm.unit_price && (
+                            <Text className="text-xs text-green-600 mt-1">
+                              {calculateDiscount(
+                                price.base_price,
+                                Math.round(parseFloat(tierForm.unit_price) * 100)
+                              ).toFixed(1)}% discount
+                            </Text>
+                          )}
+                        </div>
+                        <Button
+                          size="small"
+                          onClick={() => handleAddTier(price.id)}
+                          disabled={!tierForm.min_quantity || !tierForm.unit_price}
+                        >
+                          Add Tier
+                        </Button>
                       </div>
-                      <div>
-                        <Label className="text-xs">Max Qty (empty = unlimited)</Label>
-                        <Input
-                          type="number"
-                          min="1"
-                          value={tierForm.max_quantity}
-                          onChange={(e) =>
-                            setTierForm({ ...tierForm, max_quantity: e.target.value })
-                          }
-                          placeholder="49"
-                        />
-                      </div>
-                      <div>
-                        <Label className="text-xs">Unit Price</Label>
-                        <Input
-                          type="number"
-                          step="0.01"
-                          value={tierForm.unit_price}
-                          onChange={(e) =>
-                            setTierForm({ ...tierForm, unit_price: e.target.value })
-                          }
-                          placeholder="90.00"
-                        />
-                      </div>
-                      <Button
-                        size="small"
-                        onClick={() => handleAddTier(price.id)}
-                        disabled={!tierForm.min_quantity || !tierForm.unit_price}
-                      >
-                        Add Tier
-                      </Button>
                     </div>
                   </div>
                 )}
