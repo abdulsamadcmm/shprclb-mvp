@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
 import { WarehouseSelector } from "./warehouse-selector";
 import { ProductPrice } from "./product-price";
+import { QuantityPricing } from "./quantity-pricing";
 import { ProductWithWarehousePricing, WarehouseInfo } from "@/lib/api";
 
 interface ProductDetailsProps {
@@ -18,6 +19,7 @@ export function ProductDetails({ data }: ProductDetailsProps) {
   const [selectedVariant, setSelectedVariant] = useState(variants[0] || null);
   const [selectedWarehouse, setSelectedWarehouse] =
     useState<WarehouseInfo | null>(null);
+  const [quantity, setQuantity] = useState(1);
 
   // Auto-select first warehouse when variant changes
   useEffect(() => {
@@ -26,7 +28,17 @@ export function ProductDetails({ data }: ProductDetailsProps) {
     } else {
       setSelectedWarehouse(null);
     }
+    // Reset quantity when variant changes
+    setQuantity(1);
   }, [selectedVariant]);
+
+  // Reset quantity when warehouse changes
+  useEffect(() => {
+    setQuantity(1);
+  }, [selectedWarehouse]);
+
+  // Check if warehouse has pricing tiers
+  const hasPricingTiers = (selectedWarehouse?.pricing_tiers?.length ?? 0) > 0;
 
   return (
     <div className="p-6 lg:p-8 space-y-8">
@@ -110,8 +122,61 @@ export function ProductDetails({ data }: ProductDetailsProps) {
 
           <Separator />
 
-          {/* Price Display */}
-          <ProductPrice warehouse={selectedWarehouse} />
+          {/* Price Display - Show Quantity Pricing if tiers exist, otherwise basic price */}
+          {selectedWarehouse ? (
+            hasPricingTiers ? (
+              <QuantityPricing
+                warehouse={selectedWarehouse}
+                quantity={quantity}
+                onQuantityChange={setQuantity}
+              />
+            ) : (
+              <>
+                {/* Basic quantity selector for warehouses without tiers */}
+                <div className="space-y-2">
+                  <label className="text-sm font-medium">Quantity</label>
+                  <div className="flex items-center gap-2">
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="icon"
+                      onClick={() => setQuantity(Math.max(1, quantity - 1))}
+                      disabled={quantity <= 1}
+                    >
+                      -
+                    </Button>
+                    <input
+                      type="number"
+                      min="1"
+                      value={quantity}
+                      onChange={(e) => {
+                        const val = parseInt(e.target.value, 10);
+                        if (!isNaN(val) && val >= 1) {
+                          setQuantity(val);
+                        }
+                      }}
+                      className="w-16 h-10 text-center border rounded-md"
+                    />
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="icon"
+                      onClick={() => setQuantity(quantity + 1)}
+                    >
+                      +
+                    </Button>
+                  </div>
+                </div>
+                <ProductPrice warehouse={selectedWarehouse} />
+              </>
+            )
+          ) : (
+            <div className="rounded-lg bg-muted/50 p-6 text-center">
+              <p className="text-muted-foreground">
+                Select a warehouse to see price and availability
+              </p>
+            </div>
+          )}
 
           {/* Actions */}
           <div className="flex gap-3 pt-2">
@@ -121,7 +186,7 @@ export function ProductDetails({ data }: ProductDetailsProps) {
               disabled={!selectedWarehouse}
             >
               <ShoppingCart className="h-5 w-5 mr-2" />
-              Add to Cart
+              Add to Cart {quantity > 1 && `(${quantity})`}
             </Button>
             <Button size="lg" variant="outline" className="h-12 px-4">
               <Heart className="h-5 w-5" />
@@ -147,6 +212,15 @@ export function ProductDetails({ data }: ProductDetailsProps) {
                 {(selectedVariant?.warehouses.length || 0) !== 1 ? "s" : ""}
               </span>
             </p>
+            {(selectedWarehouse?.pricing_tiers?.length ?? 0) > 0 && (
+              <p className="text-sm">
+                <span className="font-medium">Volume Discounts:</span>{" "}
+                <span className="text-emerald-600">
+                  {selectedWarehouse?.pricing_tiers?.length} tier
+                  {(selectedWarehouse?.pricing_tiers?.length ?? 0) !== 1 ? "s" : ""} available
+                </span>
+              </p>
+            )}
           </div>
         </div>
       </div>

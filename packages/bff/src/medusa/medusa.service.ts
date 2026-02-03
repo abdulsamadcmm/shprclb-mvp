@@ -33,6 +33,14 @@ export interface WarehousePrice {
   backorder_available_date: string | null;
 }
 
+export interface PricingTier {
+  id: string;
+  warehouse_price_id: string;
+  min_quantity: number;
+  max_quantity: number | null;
+  unit_price: number;
+}
+
 export interface StockLocation {
   id: string;
   name: string;
@@ -170,6 +178,43 @@ export class MedusaService {
     } catch (error) {
       console.error('Failed to fetch inventory levels:', error);
       return [];
+    }
+  }
+
+  async getPricingTiers(warehousePriceId: string): Promise<PricingTier[]> {
+    try {
+      const data = await this.adminFetch<{ pricing_tiers: PricingTier[] }>(
+        `/admin/warehouse-prices/${warehousePriceId}/tiers`,
+      );
+      return data.pricing_tiers || [];
+    } catch (error) {
+      console.error('Failed to fetch pricing tiers:', error);
+      return [];
+    }
+  }
+
+  async calculatePrice(
+    warehousePriceId: string,
+    quantity: number,
+  ): Promise<{
+    quantity: number;
+    unit_price: number;
+    total_price: number;
+    tier_applied: boolean;
+    tier_name: string;
+  }> {
+    try {
+      const data = await this.adminFetch<{
+        quantity: number;
+        unit_price: number;
+        total_price: number;
+        tier_applied: boolean;
+        tier_name: string;
+      }>(`/admin/warehouse-prices/${warehousePriceId}/calculate?quantity=${quantity}`);
+      return data;
+    } catch (error) {
+      console.error('Failed to calculate price:', error);
+      throw error;
     }
   }
 }

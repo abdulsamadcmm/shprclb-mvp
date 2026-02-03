@@ -4,9 +4,17 @@ import {
   MedusaProduct,
   WarehousePrice,
   StockLocation,
+  PricingTier,
 } from '../medusa/medusa.service';
 
+export interface PricingTierInfo {
+  min_quantity: number;
+  max_quantity: number | null;
+  unit_price: number;
+}
+
 export interface WarehouseInfo {
+  warehouse_price_id: string;
   location_id: string;
   location_name: string;
   price: number;
@@ -14,6 +22,7 @@ export interface WarehouseInfo {
   inventory_quantity: number;
   backorder_enabled: boolean;
   backorder_available_date: string | null;
+  pricing_tiers: PricingTierInfo[];
 }
 
 export interface VariantWithWarehouses {
@@ -68,27 +77,42 @@ export class ProductsService {
       pricesByVariant.set(price.variant_id, existing);
     });
 
-    // Build variants with warehouse info
-    const variants: VariantWithWarehouses[] = product.variants.map((variant) => {
-      const warehousePrices = pricesByVariant.get(variant.id) || [];
+    // Build variants with warehouse info (including pricing tiers)
+    const variants: VariantWithWarehouses[] = await Promise.all(
+      product.variants.map(async (variant) => {
+        const warehousePrices = pricesByVariant.get(variant.id) || [];
 
-      const warehouses: WarehouseInfo[] = warehousePrices.map((wp) => ({
-        location_id: wp.location_id,
-        location_name: locationMap.get(wp.location_id) || wp.location_id,
-        price: wp.base_price,
-        currency_code: wp.currency_code,
-        inventory_quantity: 0, // TODO: fetch from inventory module
-        backorder_enabled: wp.backorder_enabled,
-        backorder_available_date: wp.backorder_available_date,
-      }));
+        const warehouses: WarehouseInfo[] = await Promise.all(
+          warehousePrices.map(async (wp) => {
+            // Fetch pricing tiers for this warehouse price
+            const tiers = await this.medusaService.getPricingTiers(wp.id);
 
-      return {
-        id: variant.id,
-        title: variant.title,
-        sku: variant.sku,
-        warehouses,
-      };
-    });
+            return {
+              warehouse_price_id: wp.id,
+              location_id: wp.location_id,
+              location_name: locationMap.get(wp.location_id) || wp.location_id,
+              price: wp.base_price,
+              currency_code: wp.currency_code,
+              inventory_quantity: 0, // TODO: fetch from inventory module
+              backorder_enabled: wp.backorder_enabled,
+              backorder_available_date: wp.backorder_available_date,
+              pricing_tiers: tiers.map((t) => ({
+                min_quantity: t.min_quantity,
+                max_quantity: t.max_quantity,
+                unit_price: t.unit_price,
+              })),
+            };
+          }),
+        );
+
+        return {
+          id: variant.id,
+          title: variant.title,
+          sku: variant.sku,
+          warehouses,
+        };
+      }),
+    );
 
     return {
       product,
