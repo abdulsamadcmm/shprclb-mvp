@@ -1,11 +1,10 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useSearchParams } from "next/navigation";
 import {
   Home,
   Package,
-  Grid3X3,
   Truck,
   Settings,
   HelpCircle,
@@ -13,18 +12,11 @@ import {
 import { cn } from "@/lib/utils";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Separator } from "@/components/ui/separator";
+import { CategoryNav } from "./category-nav";
 
 const mainNavItems = [
   { href: "/", label: "Home", icon: Home },
-  { href: "/", label: "All Products", icon: Package },
-  { href: "/", label: "Categories", icon: Grid3X3 },
-];
-
-const categoryItems = [
-  { href: "/", label: "Shirts" },
-  { href: "/", label: "Sweatshirts" },
-  { href: "/", label: "Pants" },
-  { href: "/", label: "Merch" },
+  { href: "/", label: "All Products", icon: Package, clearCategory: true },
 ];
 
 const bottomNavItems = [
@@ -35,6 +27,8 @@ const bottomNavItems = [
 
 export function Sidebar() {
   const pathname = usePathname();
+  const searchParams = useSearchParams();
+  const hasCategory = searchParams.has("category");
 
   return (
     <ScrollArea className="h-full py-6">
@@ -43,7 +37,10 @@ export function Sidebar() {
         <div className="space-y-1">
           {mainNavItems.map((item) => {
             const Icon = item.icon;
-            const isActive = pathname === item.href;
+            // "All Products" is active when on home page with no category filter
+            const isActive =
+              pathname === item.href &&
+              (item.clearCategory ? !hasCategory : !item.clearCategory);
 
             return (
               <Link
@@ -70,18 +67,7 @@ export function Sidebar() {
           <h4 className="px-3 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
             Categories
           </h4>
-          <div className="space-y-1">
-            {categoryItems.map((item) => (
-              <Link
-                key={item.label}
-                href={item.href}
-                className="flex items-center gap-3 rounded-lg px-3 py-2 text-sm text-muted-foreground transition-colors hover:bg-accent hover:text-accent-foreground"
-              >
-                <span className="h-1.5 w-1.5 rounded-full bg-muted-foreground/50" />
-                {item.label}
-              </Link>
-            ))}
-          </div>
+          <CategoryNav />
         </div>
 
         <Separator />

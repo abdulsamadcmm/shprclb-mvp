@@ -50,8 +50,21 @@ export interface CalculatedPrice {
   tier_name: string;
 }
 
-export async function getProducts(): Promise<ProductWithWarehousePricing[]> {
-  const response = await fetch(`${BFF_URL}/products`, {
+export interface Category {
+  id: string;
+  name: string;
+  handle: string;
+  is_active: boolean;
+  parent_category_id: string | null;
+}
+
+export interface CategoriesResponse {
+  categories: Category[];
+}
+
+export async function getProducts(categoryId?: string): Promise<ProductWithWarehousePricing[]> {
+  const query = categoryId ? `?category_id=${categoryId}` : '';
+  const response = await fetch(`${BFF_URL}/products${query}`, {
     cache: 'no-store',
   });
 
@@ -61,6 +74,19 @@ export async function getProducts(): Promise<ProductWithWarehousePricing[]> {
 
   const data: ProductsResponse = await response.json();
   return data.products;
+}
+
+export async function getCategories(): Promise<Category[]> {
+  const response = await fetch(`${BFF_URL}/categories`, {
+    cache: 'no-store',
+  });
+
+  if (!response.ok) {
+    throw new Error('Failed to fetch categories');
+  }
+
+  const data: CategoriesResponse = await response.json();
+  return data.categories;
 }
 
 export async function getProduct(id: string): Promise<ProductWithWarehousePricing | null> {

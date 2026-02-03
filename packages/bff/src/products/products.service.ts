@@ -120,8 +120,10 @@ export class ProductsService {
     };
   }
 
-  async getProductsWithWarehousePricing(): Promise<ProductWithWarehousePricing[]> {
-    const products = await this.medusaService.getProducts();
+  async getProductsWithWarehousePricing(
+    categoryId?: string,
+  ): Promise<ProductWithWarehousePricing[]> {
+    const products = await this.medusaService.getProducts(categoryId);
     const results: ProductWithWarehousePricing[] = [];
 
     for (const product of products) {

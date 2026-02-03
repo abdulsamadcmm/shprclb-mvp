@@ -1,5 +1,6 @@
 "use client";
 
+import { Suspense } from "react";
 import Link from "next/link";
 import { Menu, ShoppingCart, Search, User } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -30,7 +31,9 @@ export function Header() {
               <SheetHeader className="p-6 pb-0">
                 <SheetTitle>Menu</SheetTitle>
               </SheetHeader>
-              <Sidebar />
+              <Suspense fallback={<div className="p-4">Loading...</div>}>
+                <Sidebar />
+              </Suspense>
             </SheetContent>
           </Sheet>
 

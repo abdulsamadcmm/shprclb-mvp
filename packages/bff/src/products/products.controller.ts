@@ -10,8 +10,8 @@ export class ProductsController {
   ) {}
 
   @Get()
-  async getProducts() {
-    const products = await this.productsService.getProductsWithWarehousePricing();
+  async getProducts(@Query('category_id') categoryId?: string) {
+    const products = await this.productsService.getProductsWithWarehousePricing(categoryId);
     return { products };
   }
 

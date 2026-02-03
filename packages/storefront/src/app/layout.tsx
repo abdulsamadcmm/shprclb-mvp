@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { Suspense } from "react";
 import "./globals.css";
 import { Header } from "@/components/layout";
 import { Sidebar } from "@/components/layout";
@@ -7,6 +8,16 @@ export const metadata: Metadata = {
   title: "Shprclb - Warehouse E-commerce",
   description: "E-commerce platform with warehouse-specific pricing",
 };
+
+function SidebarFallback() {
+  return (
+    <div className="p-4 space-y-4">
+      <div className="h-8 bg-muted/50 rounded animate-pulse" />
+      <div className="h-8 bg-muted/50 rounded animate-pulse" />
+      <div className="h-8 bg-muted/50 rounded animate-pulse" />
+    </div>
+  );
+}
 
 export default function RootLayout({
   children,
@@ -26,7 +37,9 @@ export default function RootLayout({
         <div className="flex">
           {/* Desktop Sidebar */}
           <aside className="hidden lg:block w-64 border-r bg-sidebar min-h-[calc(100vh-4rem)] sticky top-16">
-            <Sidebar />
+            <Suspense fallback={<SidebarFallback />}>
+              <Sidebar />
+            </Suspense>
           </aside>
 
           {/* Main Content */}

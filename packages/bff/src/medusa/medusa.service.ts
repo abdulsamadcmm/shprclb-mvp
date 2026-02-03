@@ -59,6 +59,14 @@ export interface InventoryLevel {
   available_quantity: number;
 }
 
+export interface ProductCategory {
+  id: string;
+  name: string;
+  handle: string;
+  is_active: boolean;
+  parent_category_id: string | null;
+}
+
 @Injectable()
 export class MedusaService {
   private readonly baseUrl: string;
@@ -131,14 +139,27 @@ export class MedusaService {
     }
   }
 
-  async getProducts(): Promise<MedusaProduct[]> {
+  async getProducts(categoryId?: string): Promise<MedusaProduct[]> {
     try {
+      const query = categoryId ? `?category_id=${categoryId}` : '';
       const data = await this.adminFetch<{ products: MedusaProduct[] }>(
-        '/admin/products',
+        `/admin/products${query}`,
       );
       return data.products;
     } catch (error) {
       console.error('Failed to fetch products:', error);
+      return [];
+    }
+  }
+
+  async getCategories(): Promise<ProductCategory[]> {
+    try {
+      const data = await this.adminFetch<{ product_categories: ProductCategory[] }>(
+        '/admin/product-categories',
+      );
+      return data.product_categories || [];
+    } catch (error) {
+      console.error('Failed to fetch categories:', error);
       return [];
     }
   }
