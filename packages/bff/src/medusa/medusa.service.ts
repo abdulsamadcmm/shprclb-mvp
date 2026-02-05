@@ -68,13 +68,65 @@ export interface ProductCategory {
   parent_category_id: string | null;
 }
 
+export interface MedusaCart {
+  id: string;
+  email?: string;
+  items: CartLineItem[];
+  total: number;
+  subtotal: number;
+}
+
+export interface CartLineItem {
+  id: string;
+  variant_id: string;
+  quantity: number;
+  unit_price: number;
+  metadata?: Record<string, any>;
+}
+
+export interface ShippingAddress {
+  first_name: string;
+  last_name: string;
+  address_1: string;
+  address_2?: string;
+  city: string;
+  country_code: string;
+  postal_code: string;
+  phone?: string;
+}
+
+export interface MedusaOrder {
+  id: string;
+  display_id: number;
+  email: string;
+  shipping_address: ShippingAddress;
+  items: OrderLineItem[];
+  subtotal: number;
+  total: number;
+  created_at: string;
+  metadata?: Record<string, any>;
+}
+
+export interface OrderLineItem {
+  id: string;
+  title: string;
+  variant_id: string;
+  quantity: number;
+  unit_price: number;
+  total: number;
+  metadata?: Record<string, any>;
+  thumbnail?: string;
+}
+
 @Injectable()
 export class MedusaService {
   private readonly baseUrl: string;
   private adminToken: string | null = null;
+  private readonly publishableKey: string;
 
   constructor() {
     this.baseUrl = process.env.MEDUSA_BACKEND_URL || 'http://localhost:9000';
+    this.publishableKey = process.env.MEDUSA_PUBLISHABLE_KEY || '';
   }
 
   private async getAdminToken(): Promise<string> {
@@ -236,6 +288,307 @@ export class MedusaService {
       return data;
     } catch (error) {
       console.error('Failed to calculate price:', error);
+      throw error;
+    }
+  }
+
+  // Cart and Order methods
+  async createCart(regionId?: string): Promise<MedusaCart> {
+    try {
+      const headers: Record<string, string> = {
+        'Content-Type': 'application/json',
+      };
+      
+      if (this.publishableKey) {
+        headers['x-publishable-api-key'] = this.publishableKey;
+      }
+
+      const body: any = {};
+      if (regionId) {
+        body.region_id = regionId;
+      }
+
+      const response = await fetch(`${this.baseUrl}/store/carts`, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify(body),
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(`Failed to create cart: ${response.status} - ${errorText}`);
+      }
+
+      const data = await response.json();
+      return data.cart;
+    } catch (error) {
+      console.error('Failed to create cart:', error);
+      throw error;
+    }
+  }
+
+  async addLineItem(
+    cartId: string,
+    item: {
+      variant_id: string;
+      quantity: number;
+      metadata?: Record<string, any>;
+    },
+  ): Promise<MedusaCart> {
+    try {
+      const headers: Record<string, string> = {
+        'Content-Type': 'application/json',
+      };
+      
+      if (this.publishableKey) {
+        headers['x-publishable-api-key'] = this.publishableKey;
+      }
+
+      const response = await fetch(
+        `${this.baseUrl}/store/carts/${cartId}/line-items`,
+        {
+          method: 'POST',
+          headers,
+          body: JSON.stringify(item),
+        },
+      );
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(`Failed to add line item: ${response.status} - ${errorText}`);
+      }
+
+      const data = await response.json();
+      return data.cart;
+    } catch (error) {
+      console.error('Failed to add line item:', error);
+      throw error;
+    }
+  }
+
+  async updateCart(
+    cartId: string,
+    updates: {
+      email?: string;
+      shipping_address?: ShippingAddress;
+      metadata?: Record<string, any>;
+    },
+  ): Promise<MedusaCart> {
+    try {
+      const headers: Record<string, string> = {
+        'Content-Type': 'application/json',
+      };
+      
+      if (this.publishableKey) {
+        headers['x-publishable-api-key'] = this.publishableKey;
+      }
+
+      const response = await fetch(`${this.baseUrl}/store/carts/${cartId}`, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify(updates),
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(`Failed to update cart: ${response.status} - ${errorText}`);
+      }
+
+      const data = await response.json();
+      return data.cart;
+    } catch (error) {
+      console.error('Failed to update cart:', error);
+      throw error;
+    }
+  }
+
+  async initializePayment(cartId: string): Promise<any> {
+    try {
+      const headers: Record<string, string> = {
+        'Content-Type': 'application/json',
+      };
+      
+      if (this.publishableKey) {
+        headers['x-publishable-api-key'] = this.publishableKey;
+      }
+
+      const response = await fetch(
+        `${this.baseUrl}/store/payment-collections`,
+        {
+          method: 'POST',
+          headers,
+          body: JSON.stringify({ cart_id: cartId }),
+        },
+      );
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(
+          `Failed to initialize payment: ${response.status} - ${errorText}`,
+        );
+      }
+
+      const data = await response.json();
+      return data.payment_collection;
+    } catch (error) {
+      console.error('Failed to initialize payment:', error);
+      throw error;
+    }
+  }
+
+  async createPaymentSession(
+    paymentCollectionId: string,
+    providerId: string = 'pp_system_default',
+  ): Promise<any> {
+    try {
+      const headers: Record<string, string> = {
+        'Content-Type': 'application/json',
+      };
+      
+      if (this.publishableKey) {
+        headers['x-publishable-api-key'] = this.publishableKey;
+      }
+
+      const response = await fetch(
+        `${this.baseUrl}/store/payment-collections/${paymentCollectionId}/payment-sessions`,
+        {
+          method: 'POST',
+          headers,
+          body: JSON.stringify({ provider_id: providerId }),
+        },
+      );
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(
+          `Failed to create payment session: ${response.status} - ${errorText}`,
+        );
+      }
+
+      const data = await response.json();
+      return data.payment_collection;
+    } catch (error) {
+      console.error('Failed to create payment session:', error);
+      throw error;
+    }
+  }
+
+  async getShippingOptions(cartId: string): Promise<any[]> {
+    try {
+      const headers: Record<string, string> = {};
+      
+      if (this.publishableKey) {
+        headers['x-publishable-api-key'] = this.publishableKey;
+      }
+
+      const response = await fetch(
+        `${this.baseUrl}/store/shipping-options?cart_id=${cartId}`,
+        { headers },
+      );
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(
+          `Failed to get shipping options: ${response.status} - ${errorText}`,
+        );
+      }
+
+      const data = await response.json();
+      return data.shipping_options || [];
+    } catch (error) {
+      console.error('Failed to get shipping options:', error);
+      throw error;
+    }
+  }
+
+  async addShippingMethod(cartId: string, optionId: string): Promise<MedusaCart> {
+    try {
+      const headers: Record<string, string> = {
+        'Content-Type': 'application/json',
+      };
+      
+      if (this.publishableKey) {
+        headers['x-publishable-api-key'] = this.publishableKey;
+      }
+
+      const response = await fetch(
+        `${this.baseUrl}/store/carts/${cartId}/shipping-methods`,
+        {
+          method: 'POST',
+          headers,
+          body: JSON.stringify({ option_id: optionId }),
+        },
+      );
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(
+          `Failed to add shipping method: ${response.status} - ${errorText}`,
+        );
+      }
+
+      const data = await response.json();
+      return data.cart;
+    } catch (error) {
+      console.error('Failed to add shipping method:', error);
+      throw error;
+    }
+  }
+
+  async completeCart(cartId: string): Promise<MedusaOrder> {
+    try {
+      const headers: Record<string, string> = {
+        'Content-Type': 'application/json',
+      };
+      
+      if (this.publishableKey) {
+        headers['x-publishable-api-key'] = this.publishableKey;
+      }
+
+      const response = await fetch(
+        `${this.baseUrl}/store/carts/${cartId}/complete`,
+        {
+          method: 'POST',
+          headers,
+        },
+      );
+
+      if (!response.ok) {
+        const errorData = await response.text();
+        throw new Error(
+          `Failed to complete cart: ${response.status} - ${errorData}`,
+        );
+      }
+
+      const data = await response.json();
+      return data.order || data.data;
+    } catch (error) {
+      console.error('Failed to complete cart:', error);
+      throw error;
+    }
+  }
+
+  async getOrder(orderId: string): Promise<MedusaOrder> {
+    try {
+      const headers: Record<string, string> = {};
+      
+      if (this.publishableKey) {
+        headers['x-publishable-api-key'] = this.publishableKey;
+      }
+
+      const response = await fetch(`${this.baseUrl}/store/orders/${orderId}`, {
+        headers,
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(`Failed to get order: ${response.status} - ${errorText}`);
+      }
+
+      const data = await response.json();
+      return data.order;
+    } catch (error) {
+      console.error('Failed to get order:', error);
       throw error;
     }
   }

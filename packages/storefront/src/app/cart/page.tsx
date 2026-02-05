@@ -124,13 +124,11 @@ export default function CartPage() {
               <span>{formatPrice(subtotal, currencyCode)}</span>
             </div>
 
-            <Button size="lg" className="w-full" disabled>
-              Proceed to Checkout
-            </Button>
-
-            <p className="text-xs text-center text-muted-foreground">
-              Checkout flow coming soon
-            </p>
+            <Link href="/checkout">
+              <Button size="lg" className="w-full">
+                Proceed to Checkout
+              </Button>
+            </Link>
           </div>
         </div>
       </div>

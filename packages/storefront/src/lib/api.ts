@@ -144,3 +144,97 @@ export async function calculateCartLineItem(
 
   return response.json();
 }
+
+// Order types and functions
+export interface ShippingAddress {
+  first_name: string;
+  last_name: string;
+  address_1: string;
+  address_2?: string;
+  city: string;
+  country_code: string;
+  postal_code: string;
+  phone?: string;
+}
+
+export interface OrderLineItem {
+  id: string;
+  title: string;
+  variant_id: string;
+  quantity: number;
+  unit_price: number;
+  total: number;
+  metadata?: {
+    warehouse_price_id: string;
+    location_id: string;
+    location_name: string;
+    moq: number;
+    product_title: string;
+    variant_title: string;
+    thumbnail?: string;
+  };
+  thumbnail?: string;
+}
+
+export interface Order {
+  id: string;
+  display_id: number;
+  email: string;
+  shipping_address: ShippingAddress;
+  items: OrderLineItem[];
+  subtotal: number;
+  total: number;
+  created_at: string;
+  metadata?: {
+    payment_method?: string;
+  };
+}
+
+export interface CreateOrderData {
+  email: string;
+  shipping_address: ShippingAddress;
+  payment_method: string;
+  items: Array<{
+    variant_id: string;
+    quantity: number;
+    warehouse_price_id: string;
+    location_id: string;
+    location_name: string;
+    moq: number;
+    product_title: string;
+    variant_title: string;
+    thumbnail?: string;
+  }>;
+}
+
+export async function createOrder(orderData: CreateOrderData): Promise<Order> {
+  const response = await fetch(`${BFF_URL}/orders/create`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify(orderData),
+    cache: 'no-store',
+  });
+
+  if (!response.ok) {
+    const error = await response.json();
+    throw new Error(`Failed to create order: ${JSON.stringify(error)}`);
+  }
+
+  const data = await response.json();
+  return data.order;
+}
+
+export async function getOrder(orderId: string): Promise<Order> {
+  const response = await fetch(`${BFF_URL}/orders/${orderId}`, {
+    cache: 'no-store',
+  });
+
+  if (!response.ok) {
+    throw new Error('Failed to fetch order');
+  }
+
+  const data = await response.json();
+  return data.order;
+}

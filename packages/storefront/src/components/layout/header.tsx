@@ -64,10 +64,10 @@ export function Header() {
             Products
           </Link>
           <Link
-            href="/"
+            href="/orders"
             className="text-sm font-medium text-muted-foreground hover:text-foreground transition-colors"
           >
-            Categories
+            Orders
           </Link>
           <Link
             href="/"
