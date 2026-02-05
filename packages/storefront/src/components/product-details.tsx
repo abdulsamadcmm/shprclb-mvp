@@ -2,13 +2,14 @@
 
 import { useState, useEffect } from "react";
 import Link from "next/link";
-import { ChevronLeft, ShoppingCart, Heart } from "lucide-react";
+import { ChevronLeft, ShoppingCart, Heart, Check } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
 import { WarehouseSelector } from "./warehouse-selector";
 import { ProductPrice } from "./product-price";
 import { QuantityPricing } from "./quantity-pricing";
-import { ProductWithWarehousePricing, WarehouseInfo } from "@/lib/api";
+import { ProductWithWarehousePricing, WarehouseInfo, calculateCartLineItem } from "@/lib/api";
+import { useCart } from "@/contexts/cart-context";
 
 interface ProductDetailsProps {
   data: ProductWithWarehousePricing;
@@ -20,6 +21,9 @@ export function ProductDetails({ data }: ProductDetailsProps) {
   const [selectedWarehouse, setSelectedWarehouse] =
     useState<WarehouseInfo | null>(null);
   const [quantity, setQuantity] = useState(1);
+  const [isAdding, setIsAdding] = useState(false);
+  const [showSuccess, setShowSuccess] = useState(false);
+  const { addItem } = useCart();
 
   // Auto-select first warehouse when variant changes
   useEffect(() => {
@@ -40,6 +44,45 @@ export function ProductDetails({ data }: ProductDetailsProps) {
   // Check if warehouse has pricing tiers
   const hasPricingTiers = (selectedWarehouse?.pricing_tiers?.length ?? 0) > 0;
 
+  const handleAddToCart = async () => {
+    if (!selectedWarehouse || !selectedVariant) return;
+
+    setIsAdding(true);
+    try {
+      // Calculate price with tiers
+      const pricing = await calculateCartLineItem(
+        selectedWarehouse.warehouse_price_id,
+        quantity
+      );
+
+      // Add to cart
+      addItem({
+        variant_id: selectedVariant.id,
+        warehouse_price_id: selectedWarehouse.warehouse_price_id,
+        location_id: selectedWarehouse.location_id,
+        location_name: selectedWarehouse.location_name,
+        quantity,
+        product_title: product.title,
+        variant_title: selectedVariant.title,
+        variant_sku: selectedVariant.sku,
+        thumbnail: selectedVariant.thumbnail || product.thumbnail,
+        unit_price: pricing.unit_price,
+        total_price: pricing.total_price,
+        currency_code: selectedWarehouse.currency_code,
+        tier_applied: pricing.tier_applied,
+        tier_name: pricing.tier_name,
+      });
+
+      // Show success feedback
+      setShowSuccess(true);
+      setTimeout(() => setShowSuccess(false), 2000);
+    } catch (error) {
+      console.error("Failed to add to cart:", error);
+    } finally {
+      setIsAdding(false);
+    }
+  };
+
   return (
     <div className="p-6 lg:p-8 space-y-8">
       {/* Breadcrumb */}
@@ -56,10 +99,10 @@ export function ProductDetails({ data }: ProductDetailsProps) {
         {/* Product Image */}
         <div className="space-y-4">
           <div className="aspect-square overflow-hidden rounded-2xl bg-muted">
-            {product.thumbnail ? (
+            {(selectedVariant?.thumbnail || product.thumbnail) ? (
               <img
-                src={product.thumbnail}
-                alt={product.title}
+                src={selectedVariant?.thumbnail || product.thumbnail}
+                alt={selectedVariant ? `${product.title} - ${selectedVariant.title}` : product.title}
                 className="h-full w-full object-cover"
               />
             ) : (
@@ -183,10 +226,20 @@ export function ProductDetails({ data }: ProductDetailsProps) {
             <Button
               size="lg"
               className="flex-1 h-12 text-base"
-              disabled={!selectedWarehouse}
+              disabled={!selectedWarehouse || isAdding}
+              onClick={handleAddToCart}
             >
-              <ShoppingCart className="h-5 w-5 mr-2" />
-              Add to Cart {quantity > 1 && `(${quantity})`}
+              {showSuccess ? (
+                <>
+                  <Check className="h-5 w-5 mr-2" />
+                  Added to Cart!
+                </>
+              ) : (
+                <>
+                  <ShoppingCart className="h-5 w-5 mr-2" />
+                  {isAdding ? "Adding..." : `Add to Cart ${quantity > 1 ? `(${quantity})` : ""}`}
+                </>
+              )}
             </Button>
             <Button size="lg" variant="outline" className="h-12 px-4">
               <Heart className="h-5 w-5" />

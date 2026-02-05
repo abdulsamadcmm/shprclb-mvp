@@ -109,6 +109,7 @@ export class ProductsService {
           id: variant.id,
           title: variant.title,
           sku: variant.sku,
+          thumbnail: variant.thumbnail,
           warehouses,
         };
       }),

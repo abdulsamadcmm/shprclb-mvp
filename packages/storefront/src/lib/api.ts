@@ -22,6 +22,7 @@ export interface VariantWithWarehouses {
   id: string;
   title: string;
   sku: string | null;
+  thumbnail?: string | null;
   warehouses: WarehouseInfo[];
 }
 
@@ -116,6 +117,29 @@ export async function calculatePrice(
 
   if (!response.ok) {
     throw new Error('Failed to calculate price');
+  }
+
+  return response.json();
+}
+
+export async function calculateCartLineItem(
+  warehousePriceId: string,
+  quantity: number,
+): Promise<CalculatedPrice> {
+  const response = await fetch(`${BFF_URL}/cart/calculate-line-item`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      warehouse_price_id: warehousePriceId,
+      quantity,
+    }),
+    cache: 'no-store',
+  });
+
+  if (!response.ok) {
+    throw new Error('Failed to calculate cart line item');
   }
 
   return response.json();

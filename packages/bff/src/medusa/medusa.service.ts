@@ -15,6 +15,7 @@ export interface MedusaVariant {
   sku: string | null;
   prices: MedusaPrice[];
   inventory_quantity?: number;
+  thumbnail?: string | null;
 }
 
 export interface MedusaPrice {
