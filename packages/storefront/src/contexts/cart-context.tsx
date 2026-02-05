@@ -1,6 +1,7 @@
 "use client";
 
 import React, { createContext, useContext, useState, useEffect } from "react";
+import { meetsMOQ } from "@/lib/moq-utils";
 
 export interface CartLineItem {
   id: string; // unique line item id
@@ -19,6 +20,7 @@ export interface CartLineItem {
   currency_code: string;
   tier_applied: boolean;
   tier_name: string;
+  moq: number; // Minimum order quantity
 }
 
 interface CartContextType {
@@ -74,6 +76,12 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
   }, [items, isLoaded]);
 
   const addItem = (newItem: Omit<CartLineItem, "id">) => {
+    // Validate MOQ
+    if (!meetsMOQ(newItem.quantity, newItem.moq)) {
+      console.error(`Minimum order quantity is ${newItem.moq}`);
+      throw new Error(`Minimum order quantity is ${newItem.moq}`);
+    }
+
     setItems((currentItems) => {
       // Check if item with same variant + warehouse already exists
       const existingIndex = currentItems.findIndex(
@@ -85,9 +93,17 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
       if (existingIndex >= 0) {
         // Update quantity of existing item
         const updated = [...currentItems];
+        const newQuantity = updated[existingIndex].quantity + newItem.quantity;
+        
+        // Ensure combined quantity still meets MOQ
+        if (!meetsMOQ(newQuantity, newItem.moq)) {
+          console.error(`Combined quantity must meet minimum order of ${newItem.moq}`);
+          return currentItems; // Don't update if MOQ not met
+        }
+        
         updated[existingIndex] = {
           ...updated[existingIndex],
-          quantity: updated[existingIndex].quantity + newItem.quantity,
+          quantity: newQuantity,
           // Pricing will be recalculated by the component
         };
         return updated;
@@ -106,16 +122,20 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
   };
 
   const updateQuantity = (itemId: string, quantity: number) => {
-    if (quantity < 1) {
-      removeItem(itemId);
-      return;
-    }
+    setItems((currentItems) => {
+      const item = currentItems.find((i) => i.id === itemId);
+      
+      if (!item) return currentItems;
+      
+      // If quantity is below MOQ, remove the item
+      if (quantity < item.moq) {
+        return currentItems.filter((i) => i.id !== itemId);
+      }
 
-    setItems((currentItems) =>
-      currentItems.map((item) =>
-        item.id === itemId ? { ...item, quantity } : item
-      )
-    );
+      return currentItems.map((i) =>
+        i.id === itemId ? { ...i, quantity } : i
+      );
+    });
   };
 
   const updateItemPricing = (

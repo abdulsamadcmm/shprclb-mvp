@@ -73,8 +73,10 @@ export function CartLineItemComponent({
     return () => clearTimeout(timer);
   }, [localQuantity]);
 
+  const moq = item.moq || 1;
+
   const handleDecrease = () => {
-    if (localQuantity > 1) {
+    if (localQuantity > moq) {
       setLocalQuantity(localQuantity - 1);
     }
   };
@@ -85,7 +87,7 @@ export function CartLineItemComponent({
 
   const handleInputChange = (value: string) => {
     const num = parseInt(value, 10);
-    if (!isNaN(num) && num >= 1) {
+    if (!isNaN(num) && num >= moq) {
       setLocalQuantity(num);
     }
   };
@@ -134,39 +136,46 @@ export function CartLineItemComponent({
         </div>
 
         {/* Quantity Controls */}
-        <div className="flex items-center gap-2">
-          <Button
-            type="button"
-            variant="outline"
-            size="icon"
-            className="h-8 w-8"
-            onClick={handleDecrease}
-            disabled={localQuantity <= 1 || isCalculating}
-          >
-            -
-          </Button>
-          <input
-            type="number"
-            min="1"
-            value={localQuantity}
-            onChange={(e) => handleInputChange(e.target.value)}
-            disabled={isCalculating}
-            className="w-16 h-8 text-center border rounded-md text-sm"
-          />
-          <Button
-            type="button"
-            variant="outline"
-            size="icon"
-            className="h-8 w-8"
-            onClick={handleIncrease}
-            disabled={isCalculating}
-          >
-            +
-          </Button>
-          {isCalculating && (
-            <span className="text-xs text-muted-foreground">
-              Calculating...
-            </span>
+        <div className="space-y-1">
+          <div className="flex items-center gap-2">
+            <Button
+              type="button"
+              variant="outline"
+              size="icon"
+              className="h-8 w-8"
+              onClick={handleDecrease}
+              disabled={localQuantity <= moq || isCalculating}
+            >
+              -
+            </Button>
+            <input
+              type="number"
+              min={moq}
+              value={localQuantity}
+              onChange={(e) => handleInputChange(e.target.value)}
+              disabled={isCalculating}
+              className="w-16 h-8 text-center border rounded-md text-sm"
+            />
+            <Button
+              type="button"
+              variant="outline"
+              size="icon"
+              className="h-8 w-8"
+              onClick={handleIncrease}
+              disabled={isCalculating}
+            >
+              +
+            </Button>
+            {isCalculating && (
+              <span className="text-xs text-muted-foreground">
+                Calculating...
+              </span>
+            )}
+          </div>
+          {moq > 1 && (
+            <p className="text-xs text-muted-foreground">
+              Min. order: {moq} units
+            </p>
           )}
         </div>
       </div>

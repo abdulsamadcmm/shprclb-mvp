@@ -1,14 +1,16 @@
 "use client";
 
-import { Minus, Plus, Tag, TrendingDown, ArrowRight } from "lucide-react";
+import { Minus, Plus, Tag, TrendingDown, ArrowRight, Info } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { PricingTier, WarehouseInfo } from "@/lib/api";
+import { getDiscountTiers, isAtMOQ } from "@/lib/moq-utils";
 
 interface QuantityPricingProps {
   warehouse: WarehouseInfo;
   quantity: number;
   onQuantityChange: (quantity: number) => void;
+  moq: number;
 }
 
 function formatPrice(cents: number, currencyCode: string): string {
@@ -59,6 +61,7 @@ export function QuantityPricing({
   warehouse,
   quantity,
   onQuantityChange,
+  moq,
 }: QuantityPricingProps) {
   const { pricing_tiers, price: basePrice, currency_code } = warehouse;
   const hasTiers = pricing_tiers.length > 0;
@@ -70,24 +73,44 @@ export function QuantityPricing({
   );
 
   const totalPrice = currentUnitPrice * quantity;
-  const savings = tierApplied ? calculateSavings(basePrice, currentUnitPrice, quantity) : 0;
-  const pricePerUnitSaved = tierApplied ? basePrice - currentUnitPrice : 0;
+  
+  // Only show savings if above MOQ
+  const atMOQ = isAtMOQ(quantity, moq);
+  const showDiscount = tierApplied && !atMOQ;
+  const savings = showDiscount ? calculateSavings(basePrice, currentUnitPrice, quantity) : 0;
+  const pricePerUnitSaved = showDiscount ? basePrice - currentUnitPrice : 0;
 
+  // Get only discount tiers (above MOQ)
+  const discountTiers = getDiscountTiers(pricing_tiers, moq);
+  const hasDiscountTiers = discountTiers.length > 0;
+  
   // Sort tiers for display
   const sortedTiers = [...pricing_tiers].sort(
     (a, b) => a.min_quantity - b.min_quantity
   );
   
-  // Find next tier threshold
-  const nextTier = sortedTiers.find((t) => t.min_quantity > quantity);
+  // Find next tier threshold (must be above current quantity)
+  const nextTier = discountTiers.find((t) => t.min_quantity > quantity);
   const nextTierDiscount = nextTier 
     ? ((basePrice - nextTier.unit_price) / basePrice) * 100 
     : 0;
 
   return (
     <div className="space-y-4">
-      {/* Pricing Tiers Banner - Always visible when tiers exist */}
-      {hasTiers && (
+      {/* MOQ Banner - Always visible when MOQ > 1 */}
+      {moq > 1 && (
+        <div className="rounded-lg border border-blue-200 bg-blue-50 p-3">
+          <div className="flex items-center gap-2">
+            <Info className="h-4 w-4 text-blue-600" />
+            <span className="text-sm font-medium text-blue-800">
+              Minimum Order: {moq} units required
+            </span>
+          </div>
+        </div>
+      )}
+
+      {/* Volume Discounts Banner - Only show if there are tiers above MOQ */}
+      {hasDiscountTiers && (
         <div className="rounded-lg border border-emerald-200 bg-emerald-50 p-3">
           <div className="flex items-center gap-2 mb-2">
             <TrendingDown className="h-4 w-4 text-emerald-600" />
@@ -96,7 +119,7 @@ export function QuantityPricing({
             </span>
           </div>
           <div className="flex flex-wrap gap-2">
-            {sortedTiers.map((tier, idx) => {
+            {discountTiers.map((tier, idx) => {
               const discount = formatDiscount(basePrice, tier.unit_price);
               const isActive =
                 quantity >= tier.min_quantity &&
@@ -130,18 +153,18 @@ export function QuantityPricing({
               variant="ghost"
               size="icon"
               className="h-10 w-10 rounded-r-none"
-              onClick={() => onQuantityChange(Math.max(1, quantity - 1))}
-              disabled={quantity <= 1}
+              onClick={() => onQuantityChange(Math.max(moq, quantity - 1))}
+              disabled={quantity <= moq}
             >
               <Minus className="h-4 w-4" />
             </Button>
             <input
               type="number"
-              min="1"
+              min={moq}
               value={quantity}
               onChange={(e) => {
                 const val = parseInt(e.target.value, 10);
-                if (!isNaN(val) && val >= 1) {
+                if (!isNaN(val) && val >= moq) {
                   onQuantityChange(val);
                 }
               }}
@@ -158,7 +181,7 @@ export function QuantityPricing({
             </Button>
           </div>
 
-          {tierApplied && (
+          {showDiscount && (
             <Badge className="bg-emerald-500/10 text-emerald-600 border-emerald-500/20">
               <Tag className="h-3 w-3 mr-1" />
               {discountPercent.toFixed(1)}% off
@@ -175,7 +198,7 @@ export function QuantityPricing({
             <span className="text-lg font-semibold">
               {formatPrice(currentUnitPrice, currency_code)}
             </span>
-            {tierApplied && (
+            {showDiscount && (
               <>
                 <span className="text-sm text-muted-foreground line-through">
                   {formatPrice(basePrice, currency_code)}
@@ -238,24 +261,9 @@ export function QuantityPricing({
                 </tr>
               </thead>
               <tbody>
-                {/* Base price row */}
-                <tr
-                  className={`border-t ${
-                    !tierApplied ? "bg-primary/5 font-medium" : ""
-                  }`}
-                >
-                  <td className="px-3 py-2">
-                    1-{sortedTiers.length > 0 ? sortedTiers[0].min_quantity - 1 : 1} units
-                    {!tierApplied && <span className="ml-2 text-xs text-muted-foreground">(current)</span>}
-                  </td>
-                  <td className="px-3 py-2 text-right">
-                    {formatPrice(basePrice, currency_code)}
-                  </td>
-                  <td className="px-3 py-2 text-right text-muted-foreground">—</td>
-                  <td className="px-3 py-2 text-right text-muted-foreground">—</td>
-                </tr>
                 {/* Tier rows */}
                 {sortedTiers.map((tier, idx) => {
+                  const isMOQTier = tier.min_quantity === moq;
                   const discount = ((basePrice - tier.unit_price) / basePrice) * 100;
                   const savedPerUnit = basePrice - tier.unit_price;
                   const isActive =
@@ -265,27 +273,49 @@ export function QuantityPricing({
                   return (
                     <tr
                       key={idx}
-                      className={`border-t ${isActive ? "bg-emerald-50 font-medium" : ""}`}
+                      className={`border-t ${
+                        isActive 
+                          ? isMOQTier 
+                            ? "bg-blue-50 font-medium" 
+                            : "bg-emerald-50 font-medium"
+                          : ""
+                      }`}
                     >
                       <td className="px-3 py-2">
                         {tier.max_quantity === null
                           ? `${tier.min_quantity}+ units`
                           : `${tier.min_quantity}-${tier.max_quantity} units`}
-                        {isActive && <span className="ml-2 text-xs text-emerald-600">(current)</span>}
+                        {isActive && (
+                          <span className={`ml-2 text-xs ${isMOQTier ? "text-blue-600" : "text-emerald-600"}`}>
+                            {isMOQTier ? "(minimum order)" : "(current)"}
+                          </span>
+                        )}
                       </td>
                       <td className="px-3 py-2 text-right">
                         {formatPrice(tier.unit_price, currency_code)}
                       </td>
-                      <td className="px-3 py-2 text-right text-emerald-600">
-                        {formatPrice(savedPerUnit, currency_code)}/unit
+                      <td className="px-3 py-2 text-right">
+                        {isMOQTier ? (
+                          <span className="text-muted-foreground">—</span>
+                        ) : (
+                          <span className="text-emerald-600">
+                            {formatPrice(savedPerUnit, currency_code)}/unit
+                          </span>
+                        )}
                       </td>
                       <td className="px-3 py-2 text-right">
-                        <Badge 
-                          variant="secondary" 
-                          className={`text-xs ${isActive ? "bg-emerald-200 text-emerald-800" : "bg-muted"}`}
-                        >
-                          {discount.toFixed(1)}% off
-                        </Badge>
+                        {isMOQTier ? (
+                          <Badge variant="secondary" className="text-xs bg-blue-100 text-blue-700">
+                            Base Price
+                          </Badge>
+                        ) : (
+                          <Badge 
+                            variant="secondary" 
+                            className={`text-xs ${isActive ? "bg-emerald-200 text-emerald-800" : "bg-muted"}`}
+                          >
+                            {discount.toFixed(1)}% off
+                          </Badge>
+                        )}
                       </td>
                     </tr>
                   );

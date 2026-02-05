@@ -2,6 +2,8 @@ import Link from "next/link";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { ProductWithWarehousePricing } from "@/lib/api";
+import { getMOQ } from "@/lib/moq-utils";
+import { Info } from "lucide-react";
 
 interface ProductCardProps {
   data: ProductWithWarehousePricing;
@@ -24,6 +26,12 @@ export function ProductCard({ data }: ProductCardProps) {
   const warehouseCount = new Set(
     variants.flatMap((v) => v.warehouses.map((w) => w.location_id))
   ).size;
+
+  // Calculate highest MOQ across all warehouses
+  const moqValues = variants.flatMap((v) =>
+    v.warehouses.map((w) => getMOQ(w.pricing_tiers))
+  );
+  const maxMOQ = moqValues.length > 0 ? Math.max(...moqValues) : 1;
 
   return (
     <Link href={`/products/${product.id}`}>
@@ -55,21 +63,27 @@ export function ProductCard({ data }: ProductCardProps) {
             {product.description || "No description available"}
           </p>
 
-          {/* Price & Warehouse Info */}
-          <div className="flex items-end justify-between pt-1">
-            <div className="space-y-1">
-              {minPrice !== null ? (
-                <>
-                  <p className="text-lg font-bold">
-                    {minPrice === maxPrice
-                      ? formatPrice(minPrice)
-                      : `${formatPrice(minPrice)} - ${formatPrice(maxPrice!)}`}
-                  </p>
-                </>
-              ) : (
-                <p className="text-sm text-muted-foreground">Price unavailable</p>
-              )}
-            </div>
+          {/* Price */}
+          <div className="space-y-1">
+            {minPrice !== null ? (
+              <p className="text-lg font-bold">
+                {minPrice === maxPrice
+                  ? formatPrice(minPrice)
+                  : `${formatPrice(minPrice)} - ${formatPrice(maxPrice!)}`}
+              </p>
+            ) : (
+              <p className="text-sm text-muted-foreground">Price unavailable</p>
+            )}
+          </div>
+
+          {/* MOQ & Warehouse Info */}
+          <div className="flex flex-wrap gap-2 pt-1">
+            {maxMOQ > 1 && (
+              <Badge className="bg-blue-50 text-blue-700 border-blue-200 hover:bg-blue-100 text-xs">
+                <Info className="h-3 w-3 mr-1" />
+                Min. Order: {maxMOQ} units
+              </Badge>
+            )}
             {warehouseCount > 0 && (
               <Badge variant="secondary" className="text-xs">
                 {warehouseCount} location{warehouseCount > 1 ? "s" : ""}

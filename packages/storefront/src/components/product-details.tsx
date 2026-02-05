@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react";
 import Link from "next/link";
-import { ChevronLeft, ShoppingCart, Heart, Check } from "lucide-react";
+import { ChevronLeft, ShoppingCart, Heart, Check, AlertCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
 import { WarehouseSelector } from "./warehouse-selector";
@@ -10,6 +10,7 @@ import { ProductPrice } from "./product-price";
 import { QuantityPricing } from "./quantity-pricing";
 import { ProductWithWarehousePricing, WarehouseInfo, calculateCartLineItem } from "@/lib/api";
 import { useCart } from "@/contexts/cart-context";
+import { getMOQ, meetsMOQ } from "@/lib/moq-utils";
 
 interface ProductDetailsProps {
   data: ProductWithWarehousePricing;
@@ -28,21 +29,31 @@ export function ProductDetails({ data }: ProductDetailsProps) {
   // Auto-select first warehouse when variant changes
   useEffect(() => {
     if (selectedVariant?.warehouses.length > 0) {
-      setSelectedWarehouse(selectedVariant.warehouses[0]);
+      const warehouse = selectedVariant.warehouses[0];
+      setSelectedWarehouse(warehouse);
+      // Set quantity to MOQ when variant changes
+      const moq = getMOQ(warehouse.pricing_tiers);
+      setQuantity(moq);
     } else {
       setSelectedWarehouse(null);
+      setQuantity(1);
     }
-    // Reset quantity when variant changes
-    setQuantity(1);
   }, [selectedVariant]);
 
-  // Reset quantity when warehouse changes
+  // Reset quantity to MOQ when warehouse changes
   useEffect(() => {
-    setQuantity(1);
+    if (selectedWarehouse) {
+      const moq = getMOQ(selectedWarehouse.pricing_tiers);
+      setQuantity(moq);
+    }
   }, [selectedWarehouse]);
 
   // Check if warehouse has pricing tiers
   const hasPricingTiers = (selectedWarehouse?.pricing_tiers?.length ?? 0) > 0;
+  
+  // Calculate MOQ for current warehouse
+  const moq = selectedWarehouse ? getMOQ(selectedWarehouse.pricing_tiers) : 1;
+  const meetsMinimum = meetsMOQ(quantity, moq);
 
   const handleAddToCart = async () => {
     if (!selectedWarehouse || !selectedVariant) return;
@@ -71,6 +82,7 @@ export function ProductDetails({ data }: ProductDetailsProps) {
         currency_code: selectedWarehouse.currency_code,
         tier_applied: pricing.tier_applied,
         tier_name: pricing.tier_name,
+        moq,
       });
 
       // Show success feedback
@@ -172,6 +184,7 @@ export function ProductDetails({ data }: ProductDetailsProps) {
                 warehouse={selectedWarehouse}
                 quantity={quantity}
                 onQuantityChange={setQuantity}
+                moq={moq}
               />
             ) : (
               <>
@@ -183,18 +196,18 @@ export function ProductDetails({ data }: ProductDetailsProps) {
                       type="button"
                       variant="outline"
                       size="icon"
-                      onClick={() => setQuantity(Math.max(1, quantity - 1))}
-                      disabled={quantity <= 1}
+                      onClick={() => setQuantity(Math.max(moq, quantity - 1))}
+                      disabled={quantity <= moq}
                     >
                       -
                     </Button>
                     <input
                       type="number"
-                      min="1"
+                      min={moq}
                       value={quantity}
                       onChange={(e) => {
                         const val = parseInt(e.target.value, 10);
-                        if (!isNaN(val) && val >= 1) {
+                        if (!isNaN(val) && val >= moq) {
                           setQuantity(val);
                         }
                       }}
@@ -209,6 +222,11 @@ export function ProductDetails({ data }: ProductDetailsProps) {
                       +
                     </Button>
                   </div>
+                  {moq > 1 && (
+                    <p className="text-xs text-muted-foreground">
+                      Minimum order: {moq} units
+                    </p>
+                  )}
                 </div>
                 <ProductPrice warehouse={selectedWarehouse} />
               </>
@@ -221,12 +239,22 @@ export function ProductDetails({ data }: ProductDetailsProps) {
             </div>
           )}
 
+          {/* MOQ Warning */}
+          {selectedWarehouse && !meetsMinimum && (
+            <div className="rounded-lg border border-destructive/50 bg-destructive/10 p-3 flex items-start gap-2">
+              <AlertCircle className="h-4 w-4 text-destructive mt-0.5 flex-shrink-0" />
+              <p className="text-sm text-destructive">
+                Minimum order quantity is {moq} units. Please increase the quantity to add to cart.
+              </p>
+            </div>
+          )}
+
           {/* Actions */}
           <div className="flex gap-3 pt-2">
             <Button
               size="lg"
               className="flex-1 h-12 text-base"
-              disabled={!selectedWarehouse || isAdding}
+              disabled={!selectedWarehouse || isAdding || !meetsMinimum}
               onClick={handleAddToCart}
             >
               {showSuccess ? (
