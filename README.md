@@ -68,7 +68,7 @@ docker compose down -v
 
 ## MVP Features (Planned)
 
-- [ ] Warehouse-specific SKU inventory & pricing
-- [ ] MOQ / Quantity-based pricing tiers
+- [X] Warehouse-specific SKU inventory & pricing
+- [X] MOQ / Quantity-based pricing tiers
 - [ ] Backorder support
 - [ ] Order splitting by warehouse
