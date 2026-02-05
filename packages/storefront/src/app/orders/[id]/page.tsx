@@ -109,11 +109,18 @@ export default function OrderDetailsPage() {
     }
 
     warehouseGroups[locationId].items.push(item);
-    warehouseGroups[locationId].subtotal += item.total;
+    // Use metadata price if available, otherwise fall back to Medusa price
+    const itemTotal = item.metadata?.total_price || item.total;
+    warehouseGroups[locationId].subtotal += itemTotal;
   });
 
   const warehouseGroupArray = Object.values(warehouseGroups);
   const multiWarehouse = warehouseGroupArray.length > 1;
+
+  // Calculate actual total from metadata
+  const calculatedSubtotal = order.items.reduce((sum, item) => {
+    return sum + (item.metadata?.total_price || item.total);
+  }, 0);
 
   return (
     <div className="p-6 lg:p-8 max-w-6xl mx-auto">
@@ -197,7 +204,7 @@ export default function OrderDetailsPage() {
               <div className="space-y-2 text-sm">
                 <div className="flex justify-between">
                   <span className="text-muted-foreground">Subtotal</span>
-                  <span>{formatPrice(order.subtotal)}</span>
+                  <span>{formatPrice(calculatedSubtotal)}</span>
                 </div>
                 <div className="flex justify-between">
                   <span className="text-muted-foreground">Shipping</span>
@@ -215,7 +222,7 @@ export default function OrderDetailsPage() {
 
               <div className="flex justify-between font-semibold text-lg">
                 <span>Total</span>
-                <span>{formatPrice(order.total)}</span>
+                <span>{formatPrice(calculatedSubtotal)}</span>
               </div>
             </div>
 

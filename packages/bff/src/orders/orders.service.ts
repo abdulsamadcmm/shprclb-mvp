@@ -15,6 +15,8 @@ export interface CreateOrderDto {
     product_title: string;
     variant_title: string;
     thumbnail?: string;
+    unit_price: number; // Price in cents from warehouse pricing
+    total_price: number; // Total in cents
   }>;
 }
 
@@ -27,7 +29,7 @@ export class OrdersService {
       // 1. Create Medusa cart with Europe region (which now includes India)
       const cart = await this.medusaService.createCart('reg_01KGGWX5Z4CV5X546EZDKXPQ47');
 
-      // 2. Add cart items with warehouse metadata
+      // 2. Add cart items with warehouse metadata and prices
       for (const item of dto.items) {
         await this.medusaService.addLineItem(cart.id, {
           variant_id: item.variant_id,
@@ -40,6 +42,8 @@ export class OrdersService {
             product_title: item.product_title,
             variant_title: item.variant_title,
             thumbnail: item.thumbnail,
+            unit_price: item.unit_price,
+            total_price: item.total_price,
           },
         });
       }

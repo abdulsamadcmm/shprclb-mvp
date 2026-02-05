@@ -19,7 +19,11 @@ export function WarehouseFulfillment({
   items,
   currencyCode = "INR",
 }: WarehouseFulfillmentProps) {
-  const subtotal = items.reduce((sum, item) => sum + item.total, 0);
+  // Use metadata prices if available, otherwise fall back to Medusa prices
+  const subtotal = items.reduce((sum, item) => {
+    const total = item.metadata?.total_price || item.total;
+    return sum + total;
+  }, 0);
 
   return (
     <div className="bg-card rounded-lg border p-6 space-y-4">
@@ -68,7 +72,7 @@ export function WarehouseFulfillment({
                   Qty: <span className="font-medium text-foreground">{item.quantity}</span>
                 </span>
                 <span className="text-muted-foreground">
-                  {formatPrice(item.unit_price, currencyCode)} each
+                  {formatPrice(item.metadata?.unit_price || item.unit_price, currencyCode)} each
                 </span>
               </div>
             </div>
@@ -76,7 +80,7 @@ export function WarehouseFulfillment({
             {/* Item Total */}
             <div className="text-right">
               <p className="font-semibold">
-                {formatPrice(item.total, currencyCode)}
+                {formatPrice(item.metadata?.total_price || item.total, currencyCode)}
               </p>
             </div>
           </div>

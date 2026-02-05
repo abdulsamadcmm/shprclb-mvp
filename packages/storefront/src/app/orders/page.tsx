@@ -82,6 +82,11 @@ export default function OrdersPage() {
             );
             const warehouseCount = warehouseSet.size;
 
+            // Calculate total from metadata
+            const orderTotal = order.items.reduce((sum, item) => {
+              return sum + (item.metadata?.total_price || item.total);
+            }, 0);
+
             return (
               <Link key={order.id} href={`/orders/${order.id}`}>
                 <div className="bg-card rounded-lg border p-6 hover:shadow-md transition-shadow">
@@ -115,7 +120,7 @@ export default function OrdersPage() {
                         <div>
                           <p className="text-muted-foreground">Total Amount</p>
                           <p className="font-medium text-lg">
-                            {formatPrice(order.total)}
+                            {formatPrice(orderTotal)}
                           </p>
                         </div>
                       </div>

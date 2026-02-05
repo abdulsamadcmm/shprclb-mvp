@@ -136,54 +136,67 @@ function SuccessContent() {
           <h2 className="font-semibold">Order Summary</h2>
           
           <div className="space-y-3">
-            {order.items.map((item) => (
-              <div key={item.id} className="flex justify-between text-sm">
-                <div>
-                  <p className="font-medium">
-                    {item.metadata?.product_title || item.title}
-                  </p>
-                  <p className="text-muted-foreground">
-                    {item.metadata?.variant_title} × {item.quantity}
-                  </p>
-                  {item.metadata?.location_name && (
-                    <p className="text-xs text-muted-foreground">
-                      From: {item.metadata.location_name}
+            {order.items.map((item) => {
+              const itemTotal = item.metadata?.total_price || item.total;
+              return (
+                <div key={item.id} className="flex justify-between text-sm">
+                  <div>
+                    <p className="font-medium">
+                      {item.metadata?.product_title || item.title}
                     </p>
-                  )}
+                    <p className="text-muted-foreground">
+                      {item.metadata?.variant_title} × {item.quantity}
+                    </p>
+                    {item.metadata?.location_name && (
+                      <p className="text-xs text-muted-foreground">
+                        From: {item.metadata.location_name}
+                      </p>
+                    )}
+                  </div>
+                  <p className="font-medium">
+                    {new Intl.NumberFormat("en-IN", {
+                      style: "currency",
+                      currency: "INR",
+                    }).format(itemTotal / 100)}
+                  </p>
                 </div>
-                <p className="font-medium">
-                  {new Intl.NumberFormat("en-IN", {
-                    style: "currency",
-                    currency: "INR",
-                  }).format(item.total / 100)}
-                </p>
-              </div>
-            ))}
+              );
+            })}
           </div>
 
           <div className="pt-4 border-t space-y-2">
-            <div className="flex justify-between text-sm">
-              <span className="text-muted-foreground">Subtotal</span>
-              <span>
-                {new Intl.NumberFormat("en-IN", {
-                  style: "currency",
-                  currency: "INR",
-                }).format(order.subtotal / 100)}
-              </span>
-            </div>
-            <div className="flex justify-between text-sm">
-              <span className="text-muted-foreground">Shipping</span>
-              <span className="text-emerald-600">Free</span>
-            </div>
-            <div className="flex justify-between text-lg font-semibold pt-2 border-t">
-              <span>Total</span>
-              <span>
-                {new Intl.NumberFormat("en-IN", {
-                  style: "currency",
-                  currency: "INR",
-                }).format(order.total / 100)}
-              </span>
-            </div>
+            {(() => {
+              const calculatedSubtotal = order.items.reduce((sum, item) => {
+                return sum + (item.metadata?.total_price || item.total);
+              }, 0);
+              
+              return (
+                <>
+                  <div className="flex justify-between text-sm">
+                    <span className="text-muted-foreground">Subtotal</span>
+                    <span>
+                      {new Intl.NumberFormat("en-IN", {
+                        style: "currency",
+                        currency: "INR",
+                      }).format(calculatedSubtotal / 100)}
+                    </span>
+                  </div>
+                  <div className="flex justify-between text-sm">
+                    <span className="text-muted-foreground">Shipping</span>
+                    <span className="text-emerald-600">Free</span>
+                  </div>
+                  <div className="flex justify-between text-lg font-semibold pt-2 border-t">
+                    <span>Total</span>
+                    <span>
+                      {new Intl.NumberFormat("en-IN", {
+                        style: "currency",
+                        currency: "INR",
+                      }).format(calculatedSubtotal / 100)}
+                    </span>
+                  </div>
+                </>
+              );
+            })()}
           </div>
         </div>
 

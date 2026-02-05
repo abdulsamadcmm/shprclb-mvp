@@ -204,6 +204,8 @@ export interface CreateOrderData {
     product_title: string;
     variant_title: string;
     thumbnail?: string;
+    unit_price: number;
+    total_price: number;
   }>;
 }
 
