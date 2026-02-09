@@ -28,9 +28,14 @@ export default function RootLayout({
   return (
     <html lang="en">
       <head>
+        {/* Preconnect to Fontshare for faster font loading */}
+        <link rel="preconnect" href="https://api.fontshare.com" crossOrigin="anonymous" />
+        <link rel="preconnect" href="https://fonts.fontshare.com" crossOrigin="anonymous" />
+        {/* Load Satoshi font from Fontshare */}
         <link
           href="https://api.fontshare.com/v2/css?f[]=satoshi@400,500,700,900&display=swap"
           rel="stylesheet"
+          crossOrigin="anonymous"
         />
       </head>
       <body className="antialiased min-h-screen">

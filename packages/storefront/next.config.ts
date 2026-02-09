@@ -10,6 +10,20 @@ const nextConfig: NextConfig = {
       },
     ];
   },
+  // Allow fonts from Fontshare
+  async headers() {
+    return [
+      {
+        source: '/:path*',
+        headers: [
+          {
+            key: 'Permissions-Policy',
+            value: 'font-display=swap',
+          },
+        ],
+      },
+    ];
+  },
 };
 
 export default nextConfig;

@@ -1,13 +1,8 @@
 @import "tailwindcss";
 @import "tw-animate-css";
 
-/* Satoshi Font from Fontshare */
-@font-face {
-  font-family: 'Satoshi';
-  src: url('https://api.fontshare.com/v2/css?f[]=satoshi@400,500,700,900&display=swap');
-  font-weight: 400 900;
-  font-display: swap;
-}
+/* Satoshi Font is loaded via <link> tag in layout.tsx */
+/* The font will be available as 'Satoshi' after the stylesheet loads */
 
 @custom-variant dark (&:is(.dark *));
 
@@ -130,5 +125,13 @@
   body {
     @apply bg-background text-foreground;
     font-family: 'Satoshi', system-ui, sans-serif;
+  }
+  /* Ensure all text elements use Satoshi */
+  h1, h2, h3, h4, h5, h6, p, span, div, a, button, input, textarea, select, label {
+    font-family: 'Satoshi', system-ui, sans-serif;
+  }
+  /* Ensure form elements inherit font */
+  input, textarea, select, button {
+    font-family: inherit;
   }
 }

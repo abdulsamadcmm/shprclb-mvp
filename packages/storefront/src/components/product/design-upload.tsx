@@ -24,6 +24,275 @@ interface DesignUploadProps {
   productImage?: string | null; // Product/shirt image for preview overlay
 }
 
+// Helper function to fetch an image through proxy and convert to data URL to bypass CORS
+async function fetchImageAsDataUrl(url: string): Promise<string> {
+  const BFF_URL = process.env.NEXT_PUBLIC_BFF_URL || 'http://localhost:3001';
+  
+  try {
+    // Use BFF proxy endpoint to bypass CORS
+    const proxyUrl = `${BFF_URL}/files/proxy-image?url=${encodeURIComponent(url)}`;
+    console.log('Fetching image through proxy:', proxyUrl);
+    
+    const response = await fetch(proxyUrl);
+    
+    if (!response.ok) {
+      const errorText = await response.text().catch(() => 'Unknown error');
+      console.error('Proxy fetch failed:', response.status, errorText);
+      throw new Error(`HTTP error! status: ${response.status}, message: ${errorText}`);
+    }
+    
+    const blob = await response.blob();
+    console.log('Image fetched successfully, blob size:', blob.size);
+    
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => {
+        console.log('Image converted to data URL successfully');
+        resolve(reader.result as string);
+      };
+      reader.onerror = () => {
+        console.error('Failed to convert blob to data URL');
+        reject(new Error('Failed to convert blob to data URL'));
+      };
+      reader.readAsDataURL(blob);
+    });
+  } catch (error) {
+    console.error('Failed to fetch image through proxy:', error);
+    throw error;
+  }
+}
+
+// Helper function to load an image from a URL or File
+function loadImage(source: string | File): Promise<HTMLImageElement> {
+  return new Promise(async (resolve, reject) => {
+    const img = new Image();
+    
+    img.onload = () => {
+      // Ensure image is fully loaded
+      if (img.complete && img.naturalWidth > 0) {
+        resolve(img);
+      } else {
+        reject(new Error('Image failed to load completely'));
+      }
+    };
+    
+    img.onerror = (err) => {
+      reject(new Error(`Failed to load image: ${err}`));
+    };
+    
+    if (source instanceof File) {
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        const dataUrl = e.target?.result as string;
+        img.src = dataUrl;
+      };
+      reader.onerror = () => reject(new Error('Failed to read file'));
+      reader.readAsDataURL(source);
+    } else {
+      // For external URLs, always use proxy to bypass CORS
+      if (source.startsWith('http://') || source.startsWith('https://')) {
+        // Always fetch through proxy to avoid CORS issues
+        fetchImageAsDataUrl(source)
+          .then((dataUrl) => {
+            img.src = dataUrl;
+          })
+          .catch((error) => {
+            console.error('Failed to fetch image through proxy:', error);
+            reject(new Error(`Failed to load image: ${error}`));
+          });
+      } else {
+        // Local URL (relative path), load directly
+        img.src = source;
+      }
+    }
+  });
+}
+
+// Helper function to resize an image while maintaining aspect ratio
+function resizeImage(
+  img: HTMLImageElement,
+  maxWidth: number,
+  maxHeight: number
+): { width: number; height: number } {
+  let { width, height } = img;
+  
+  // Calculate scaling factor to fit within max dimensions
+  const scale = Math.min(maxWidth / width, maxHeight / height);
+  
+  return {
+    width: width * scale,
+    height: height * scale,
+  };
+}
+
+// Create a resized version of the design image on a separate canvas
+function createResizedDesignCanvas(
+  designImg: HTMLImageElement,
+  targetWidth: number,
+  targetHeight: number
+): HTMLCanvasElement {
+  const canvas = document.createElement('canvas');
+  const ctx = canvas.getContext('2d', { alpha: true }); // Enable alpha channel for transparency
+  
+  if (!ctx) {
+    throw new Error('Could not get canvas context');
+  }
+
+  // Calculate size maintaining aspect ratio
+  const size = resizeImage(designImg, targetWidth, targetHeight);
+  canvas.width = size.width;
+  canvas.height = size.height;
+
+  // Clear canvas with transparent background (important for preserving PNG transparency)
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+  
+  // Enable image smoothing for better quality
+  ctx.imageSmoothingEnabled = true;
+  ctx.imageSmoothingQuality = 'high';
+  
+  // Draw the resized design - PNG transparency will be preserved
+  ctx.drawImage(designImg, 0, 0, size.width, size.height);
+  
+  return canvas;
+}
+
+// Create composite image: product image as base, custom design overlaid on top
+async function createCompositeImage(
+  productImageUrl: string | null,
+  designImageFile: File,
+  placement: 'front' | 'back'
+): Promise<Blob> {
+  return new Promise(async (resolve, reject) => {
+    try {
+      const canvas = document.createElement('canvas');
+      const ctx = canvas.getContext('2d', { alpha: true }); // Enable alpha channel for transparency
+      
+      if (!ctx) {
+        reject(new Error('Could not get canvas context'));
+        return;
+      }
+
+      // Load product image first
+      let productImg: HTMLImageElement | null = null;
+      if (productImageUrl) {
+        try {
+          console.log('Loading product image:', productImageUrl);
+          productImg = await loadImage(productImageUrl);
+          console.log('Product image loaded successfully:', productImg.width, 'x', productImg.height);
+        } catch (err) {
+          console.error('Failed to load product image, using white background', err);
+          // Don't throw - we'll use white background instead
+        }
+      }
+
+      // Load design image
+      const designImg = await loadImage(designImageFile);
+      console.log('Design image loaded:', designImg.width, 'x', designImg.height);
+
+      // Set canvas size to product image size, or use design size if no product image
+      if (productImg) {
+        canvas.width = productImg.width;
+        canvas.height = productImg.height;
+      } else {
+        // Default size if no product image
+        canvas.width = 1000;
+        canvas.height = 1000;
+      }
+
+      // Draw product image as base layer
+      if (productImg) {
+        ctx.drawImage(productImg, 0, 0, canvas.width, canvas.height);
+      } else {
+        // White background if no product image
+        ctx.fillStyle = '#FFFFFF';
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+      }
+
+      // Reduce design size significantly - make it smaller (30-40% of product image)
+      const designScaleFactor = 0.35; // 35% of product image size
+      const maxDesignWidth = canvas.width * designScaleFactor;
+      const maxDesignHeight = canvas.height * designScaleFactor;
+      
+      // Create resized design canvas first - this reduces the design size
+      const resizedDesignCanvas = createResizedDesignCanvas(
+        designImg,
+        maxDesignWidth,
+        maxDesignHeight
+      );
+      console.log('Resized design canvas:', resizedDesignCanvas.width, 'x', resizedDesignCanvas.height);
+      console.log('Canvas size:', canvas.width, 'x', canvas.height);
+
+      // Calculate position to center the design on the product image
+      const designX = (canvas.width - resizedDesignCanvas.width) / 2;
+      const designY = (canvas.height - resizedDesignCanvas.height) / 2;
+      console.log('Design position:', designX, designY);
+
+      // Enable image smoothing for better quality
+      ctx.imageSmoothingEnabled = true;
+      ctx.imageSmoothingQuality = 'high';
+      
+      // Don't set globalAlpha - preserve PNG transparency naturally
+      // The PNG's alpha channel will be preserved when drawing, allowing transparent backgrounds
+
+      // Save context for transformations
+      ctx.save();
+
+      // Flip horizontally if placement is 'back'
+      if (placement === 'back') {
+        // Translate to the right edge, then flip horizontally
+        ctx.translate(canvas.width, 0);
+        ctx.scale(-1, 1);
+        // Draw resized design flipped - PNG transparency preserved
+        ctx.drawImage(
+          resizedDesignCanvas,
+          -designX - resizedDesignCanvas.width,
+          designY,
+          resizedDesignCanvas.width,
+          resizedDesignCanvas.height
+        );
+      } else {
+        // Draw resized design normally for 'front' - on top of product image
+        // PNG transparency preserved, transparent background will show through to product image
+        ctx.drawImage(
+          resizedDesignCanvas,
+          designX,
+          designY,
+          resizedDesignCanvas.width,
+          resizedDesignCanvas.height
+        );
+      }
+
+      // Restore context
+      ctx.restore();
+
+      // Convert canvas to blob
+      canvas.toBlob(
+        (blob) => {
+          if (blob) {
+            resolve(blob);
+          } else {
+            reject(new Error('Failed to create blob from canvas'));
+          }
+        },
+        'image/png',
+        0.95
+      );
+    } catch (error) {
+      reject(error);
+    }
+  });
+}
+
+// Convert blob to base64
+function blobToBase64(blob: Blob): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(reader.result as string);
+    reader.onerror = reject;
+    reader.readAsDataURL(blob);
+  });
+}
+
 export function DesignUpload({
   onDesignChange,
   initialDesign,
@@ -37,8 +306,9 @@ export function DesignUpload({
   const [preview, setPreview] = useState<string | null>(
     initialDesign?.file_url || null
   );
-  const [localPreview, setLocalPreview] = useState<string | null>(null); // Local file preview before upload
-  const [selectedFile, setSelectedFile] = useState<File | null>(null); // Store selected file
+  const [localPreview, setLocalPreview] = useState<string | null>(null); // Composite preview before upload
+  const [selectedFile, setSelectedFile] = useState<File | null>(null); // Store selected design file
+  const [compositeBlob, setCompositeBlob] = useState<Blob | null>(null); // Store composite image blob
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const handleFileSelect = async (file: File) => {
@@ -51,13 +321,33 @@ export function DesignUpload({
       return;
     }
 
-    // Create local preview immediately (before upload)
-    try {
-      const previewUrl = await fileToBase64(file);
-      setLocalPreview(previewUrl);
-      setSelectedFile(file); // Store file in state
-    } catch (err) {
-      setError('Failed to read file');
+    // Store selected file
+    setSelectedFile(file);
+
+    // Create composite preview if product image is available
+    if (productImage) {
+      try {
+        setIsUploading(true);
+        const composite = await createCompositeImage(productImage, file, placement);
+        const previewUrl = await blobToBase64(composite);
+        setLocalPreview(previewUrl);
+        setCompositeBlob(composite);
+      } catch (err) {
+        console.error('Failed to create composite preview:', err);
+        setError('Failed to create preview. Please try again.');
+        setSelectedFile(null);
+      } finally {
+        setIsUploading(false);
+      }
+    } else {
+      // Fallback: just show the design file if no product image
+      try {
+        const previewUrl = await fileToBase64(file);
+        setLocalPreview(previewUrl);
+      } catch (err) {
+        setError('Failed to read file');
+        setSelectedFile(null);
+      }
     }
   };
 
@@ -70,6 +360,26 @@ export function DesignUpload({
     setIsUploading(true);
 
     try {
+      // Use composite blob if available, otherwise fallback to original file
+      let fileToUpload: Blob;
+      let fileName: string;
+      let mimeType: string;
+
+      if (compositeBlob) {
+        // Upload composite image
+        fileToUpload = compositeBlob;
+        fileName = `composite-${selectedFile.name.replace(/\.[^/.]+$/, '')}.png`;
+        mimeType = 'image/png';
+      } else {
+        // Fallback: upload original file (when no product image)
+        fileToUpload = selectedFile;
+        fileName = selectedFile.name;
+        mimeType = selectedFile.type;
+      }
+
+      // Convert blob to base64 for upload
+      const fileData = await blobToBase64(fileToUpload);
+
       // Upload to BFF
       const response = await fetch(`${BFF_URL}/files/upload`, {
         method: 'POST',
@@ -77,9 +387,9 @@ export function DesignUpload({
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          file_data: localPreview,
-          file_name: selectedFile.name,
-          mime_type: selectedFile.type,
+          file_data: fileData,
+          file_name: fileName,
+          mime_type: mimeType,
         }),
       });
 
@@ -106,6 +416,7 @@ export function DesignUpload({
         : `${medusaBaseUrl}${designInfo.file_url}`;
       setPreview(previewFullUrl);
       setLocalPreview(null); // Clear local preview after upload
+      setCompositeBlob(null); // Clear composite blob
       onDesignChange(designInfo);
     } catch (err) {
       console.error('Upload error:', err);
@@ -135,6 +446,7 @@ export function DesignUpload({
     setPreview(null);
     setLocalPreview(null);
     setSelectedFile(null);
+    setCompositeBlob(null);
     setError(null);
     onDesignChange(null);
     if (fileInputRef.current) {
@@ -145,14 +457,32 @@ export function DesignUpload({
   const handleCancelPreview = () => {
     setLocalPreview(null);
     setSelectedFile(null);
+    setCompositeBlob(null);
     setError(null);
     if (fileInputRef.current) {
       fileInputRef.current.value = '';
     }
   };
 
-  const handlePlacementChange = (newPlacement: 'front' | 'back') => {
+  const handlePlacementChange = async (newPlacement: 'front' | 'back') => {
     setPlacement(newPlacement);
+    
+    // Update preview if we have a selected file
+    if (selectedFile && productImage) {
+      try {
+        setIsUploading(true);
+        const composite = await createCompositeImage(productImage, selectedFile, newPlacement);
+        const previewUrl = await blobToBase64(composite);
+        setLocalPreview(previewUrl);
+        setCompositeBlob(composite);
+      } catch (err) {
+        console.error('Failed to update preview:', err);
+        setError('Failed to update preview');
+      } finally {
+        setIsUploading(false);
+      }
+    }
+    
     if (design) {
       const updatedDesign = { ...design, placement: newPlacement };
       setDesign(updatedDesign);
@@ -165,7 +495,8 @@ export function DesignUpload({
       <div className="space-y-2">
         <label className="text-sm font-medium">Custom Design (Optional)</label>
         <p className="text-xs text-muted-foreground">
-          Upload your design for the front or back. Max 5MB, min 500x500px (JPG, PNG, SVG)
+          Upload your design for the front or back. Max 5MB, min 500x500px (JPG, PNG, SVG). 
+          Your design will be automatically overlaid on the product image and uploaded as a composite image.
         </p>
       </div>
 
@@ -232,43 +563,21 @@ export function DesignUpload({
         </div>
       )}
 
-      {/* Preview with Shirt Overlay */}
+      {/* Preview with Composite Image */}
       {localPreview && !design && (
         <div className="border rounded-lg p-4 space-y-4">
-          <div className="text-sm font-medium">Preview</div>
+          <div className="text-sm font-medium">Preview - Composite Image</div>
+          <p className="text-xs text-muted-foreground">
+            This preview shows how your design will appear on the product. The uploaded image will be this composite.
+          </p>
           
-          {/* Shirt with Design Overlay */}
+          {/* Composite Image Preview */}
           <div className="relative w-full aspect-square max-w-md mx-auto bg-muted rounded-lg overflow-hidden">
-            {productImage ? (
-              <>
-                {/* Shirt Image */}
-                <img
-                  src={productImage}
-                  alt="Product"
-                  className="w-full h-full object-contain"
-                />
-                {/* Design Overlay */}
-                <div
-                  className={`absolute inset-0 flex items-center justify-center ${
-                    placement === 'front' ? '' : 'scale-x-[-1]'
-                  }`}
-                  style={{
-                    backgroundImage: `url(${localPreview})`,
-                    backgroundSize: '60%',
-                    backgroundPosition: 'center',
-                    backgroundRepeat: 'no-repeat',
-                    mixBlendMode: 'multiply',
-                  }}
-                />
-              </>
-            ) : (
-              /* Fallback: Just show design if no product image */
-              <img
-                src={localPreview}
-                alt="Design preview"
-                className="w-full h-full object-contain"
-              />
-            )}
+            <img
+              src={localPreview}
+              alt="Composite preview"
+              className="w-full h-full object-contain"
+            />
           </div>
 
           {/* Action Buttons */}
@@ -285,7 +594,7 @@ export function DesignUpload({
                   Uploading...
                 </>
               ) : (
-                'Upload Design'
+                'Upload Composite Image'
               )}
             </Button>
             <Button
