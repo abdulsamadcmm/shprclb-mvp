@@ -32,6 +32,14 @@ export async function GET(
       tier_name: result.tier_name,
     })
   } catch (error) {
+    const message = error instanceof Error ? error.message : String(error)
+    if (message === "Warehouse price not found") {
+      res.status(404).json({
+        type: "not_found",
+        message: "Warehouse price not found",
+      })
+      return
+    }
     res.status(500).json({ error: "Failed to calculate price" })
   }
 }

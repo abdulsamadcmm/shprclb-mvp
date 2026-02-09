@@ -11,7 +11,9 @@ module.exports = defineConfig({
       authCors: process.env.AUTH_CORS!,
       jwtSecret: process.env.JWT_SECRET || "supersecret",
       cookieSecret: process.env.COOKIE_SECRET || "supersecret",
-    }
+    },
+    // Body parser limit for /store/file-upload is set in src/api/middlewares.ts (10mb).
+    // projectConfig.bodyParser is not used by Medusa's HTTP layer; per-route config is required.
   },
   modules: [
     {
