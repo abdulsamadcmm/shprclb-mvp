@@ -189,23 +189,49 @@ export async function GET(
       paginatedOrders.map(async (order: any) => {
         const itemsWithDesign = (order.items || []).filter((item: any) => hasCustomDesign(item));
 
-        // Fetch full order details using query module to get all fields
+        // Fetch full order details - try multiple approaches
         let fullOrder: any = null;
+        
+        // Try 1: Use orderService retrieve method
         try {
-          const query = req.scope.resolve("query");
-          const result = await query.graph({
-            entity: "order",
-            fields: "id,display_id,email,created_at,status,total,currency_code,*customer",
-            filters: {
-              id: order.id,
-            },
-          });
-          
-          if (result?.data && result.data.length > 0) {
-            fullOrder = result.data[0];
+          if (orderService && typeof orderService.retrieve === 'function') {
+            fullOrder = await orderService.retrieve(order.id);
+            console.log(`Retrieved order ${order.id} via retrieve method`);
+          } else if (orderService && typeof orderService.retrieveOrder === 'function') {
+            fullOrder = await orderService.retrieveOrder(order.id);
+            console.log(`Retrieved order ${order.id} via retrieveOrder method`);
           }
-        } catch (e) {
-          console.error(`Failed to fetch full order ${order.id}:`, e);
+        } catch (retrieveError) {
+          console.log(`Retrieve method failed for ${order.id}, trying query module`);
+          
+          // Try 2: Use query module with simple fields
+          try {
+            const query = req.scope.resolve("query");
+            const result = await query.graph({
+              entity: "order",
+              fields: "id,display_id,email,created_at,status,total,currency_code",
+              filters: {
+                id: order.id,
+              },
+            });
+            
+            if (result?.data && result.data.length > 0) {
+              fullOrder = result.data[0];
+              console.log(`Fetched order ${order.id} via query module`);
+            }
+          } catch (queryError) {
+            console.error(`Query module also failed for ${order.id}:`, queryError);
+          }
+        }
+        
+        if (fullOrder) {
+          console.log(`Order ${order.id} details:`, {
+            display_id: fullOrder.display_id,
+            email: fullOrder.email,
+            status: fullOrder.status,
+            total: fullOrder.total,
+            currency_code: fullOrder.currency_code,
+          });
         }
 
         // Extract order fields from full order or fallback to defaults
