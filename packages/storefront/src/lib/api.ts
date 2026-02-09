@@ -206,6 +206,12 @@ export interface CreateOrderData {
     thumbnail?: string;
     unit_price: number;
     total_price: number;
+    custom_design?: {
+      file_url: string;
+      file_id: string;
+      placement: 'front' | 'back';
+      file_name: string;
+    };
   }>;
 }
 

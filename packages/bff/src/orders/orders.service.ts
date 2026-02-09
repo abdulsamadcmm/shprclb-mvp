@@ -17,6 +17,12 @@ export interface CreateOrderDto {
     thumbnail?: string;
     unit_price: number; // Price in cents from warehouse pricing
     total_price: number; // Total in cents
+    custom_design?: {
+      file_url: string;
+      file_id: string;
+      placement: 'front' | 'back';
+      file_name: string;
+    };
   }>;
 }
 
@@ -31,20 +37,32 @@ export class OrdersService {
 
       // 2. Add cart items with warehouse metadata and prices
       for (const item of dto.items) {
+        const metadata: Record<string, any> = {
+          warehouse_price_id: item.warehouse_price_id,
+          location_id: item.location_id,
+          location_name: item.location_name,
+          moq: item.moq,
+          product_title: item.product_title,
+          variant_title: item.variant_title,
+          thumbnail: item.thumbnail,
+          unit_price: item.unit_price,
+          total_price: item.total_price,
+        };
+
+        // Add custom design if present
+        if (item.custom_design) {
+          metadata.custom_design = {
+            file_url: item.custom_design.file_url,
+            file_id: item.custom_design.file_id,
+            placement: item.custom_design.placement,
+            file_name: item.custom_design.file_name,
+          };
+        }
+
         await this.medusaService.addLineItem(cart.id, {
           variant_id: item.variant_id,
           quantity: item.quantity,
-          metadata: {
-            warehouse_price_id: item.warehouse_price_id,
-            location_id: item.location_id,
-            location_name: item.location_name,
-            moq: item.moq,
-            product_title: item.product_title,
-            variant_title: item.variant_title,
-            thumbnail: item.thumbnail,
-            unit_price: item.unit_price,
-            total_price: item.total_price,
-          },
+          metadata,
         });
       }
 

@@ -74,6 +74,7 @@ export default function CheckoutPage() {
         thumbnail: item.thumbnail || undefined,
         unit_price: item.unit_price,
         total_price: item.total_price,
+        custom_design: item.custom_design,
       }));
 
       const order = await createOrder({

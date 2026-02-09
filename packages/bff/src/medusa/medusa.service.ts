@@ -145,9 +145,23 @@ export class MedusaService {
       }),
     });
 
-    const data = await response.json();
+    const bodyText = await response.text();
+    if (!response.ok) {
+      throw new Error(
+        `Medusa auth failed: ${response.status} ${response.statusText} - ${bodyText}`,
+      );
+    }
+    let data: { token?: string };
+    try {
+      data = JSON.parse(bodyText);
+    } catch {
+      throw new Error(`Medusa auth failed: invalid JSON response - ${bodyText}`);
+    }
+    if (!data?.token) {
+      throw new Error(`Medusa auth failed: no token in response - ${bodyText}`);
+    }
     this.adminToken = data.token;
-    return this.adminToken!;
+    return this.adminToken;
   }
 
   private async adminFetch<T>(path: string): Promise<T> {
@@ -158,11 +172,17 @@ export class MedusaService {
       },
     });
 
+    const bodyText = await response.text();
     if (!response.ok) {
-      throw new Error(`Medusa API error: ${response.status} ${response.statusText}`);
+      throw new Error(
+        `Medusa API error: ${response.status} ${response.statusText} - ${bodyText}`,
+      );
     }
-
-    return response.json();
+    try {
+      return JSON.parse(bodyText) as T;
+    } catch {
+      throw new Error(`Medusa API error: invalid JSON response - ${bodyText}`);
+    }
   }
 
   private async storeFetch<T>(path: string, publishableKey?: string): Promise<T> {
@@ -589,6 +609,47 @@ export class MedusaService {
       return data.order;
     } catch (error) {
       console.error('Failed to get order:', error);
+      throw error;
+    }
+  }
+
+  async uploadFile(fileData: {
+    file_data: string;
+    file_name: string;
+    mime_type: string;
+  }): Promise<{
+    file_url: string;
+    file_id: string;
+    file_name: string;
+    file_size: number;
+    mime_type: string;
+  }> {
+    try {
+      const headers: Record<string, string> = {
+        'Content-Type': 'application/json',
+      };
+
+      if (this.publishableKey) {
+        headers['x-publishable-api-key'] = this.publishableKey;
+      }
+
+      const response = await fetch(`${this.baseUrl}/store/file-upload`, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify(fileData),
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(
+          `Failed to upload file: ${response.status} - ${errorText}`,
+        );
+      }
+
+      const data = await response.json();
+      return data;
+    } catch (error) {
+      console.error('Failed to upload file:', error);
       throw error;
     }
   }

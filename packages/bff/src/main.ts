@@ -6,9 +6,13 @@ import {
 import { AppModule } from './app.module';
 
 async function bootstrap() {
+  const fastifyAdapter = new FastifyAdapter({
+    bodyLimit: 10 * 1024 * 1024, // 10MB limit for file uploads
+  });
+
   const app = await NestFactory.create<NestFastifyApplication>(
     AppModule,
-    new FastifyAdapter(),
+    fastifyAdapter,
   );
 
   app.enableCors({

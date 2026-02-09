@@ -21,6 +21,12 @@ export interface CartLineItem {
   tier_applied: boolean;
   tier_name: string;
   moq: number; // Minimum order quantity
+  custom_design?: {
+    file_url: string;
+    file_id: string;
+    placement: 'front' | 'back';
+    file_name: string;
+  };
 }
 
 interface CartContextType {

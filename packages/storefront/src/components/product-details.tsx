@@ -8,6 +8,7 @@ import { Separator } from "@/components/ui/separator";
 import { WarehouseSelector } from "./warehouse-selector";
 import { ProductPrice } from "./product-price";
 import { QuantityPricing } from "./quantity-pricing";
+import { DesignUpload, type DesignInfo } from "./product/design-upload";
 import { ProductWithWarehousePricing, WarehouseInfo, calculateCartLineItem } from "@/lib/api";
 import { useCart } from "@/contexts/cart-context";
 import { getMOQ, meetsMOQ } from "@/lib/moq-utils";
@@ -24,6 +25,7 @@ export function ProductDetails({ data }: ProductDetailsProps) {
   const [quantity, setQuantity] = useState(1);
   const [isAdding, setIsAdding] = useState(false);
   const [showSuccess, setShowSuccess] = useState(false);
+  const [customDesign, setCustomDesign] = useState<DesignInfo | null>(null);
   const { addItem } = useCart();
 
   // Auto-select first warehouse when variant changes
@@ -83,7 +85,16 @@ export function ProductDetails({ data }: ProductDetailsProps) {
         tier_applied: pricing.tier_applied,
         tier_name: pricing.tier_name,
         moq,
+        custom_design: customDesign ? {
+          file_url: customDesign.file_url,
+          file_id: customDesign.file_id,
+          placement: customDesign.placement,
+          file_name: customDesign.file_name,
+        } : undefined,
       });
+
+      // Clear design after adding to cart
+      setCustomDesign(null);
 
       // Show success feedback
       setShowSuccess(true);
@@ -174,6 +185,16 @@ export function ProductDetails({ data }: ProductDetailsProps) {
               onSelect={setSelectedWarehouse}
             />
           )}
+
+          <Separator />
+
+          {/* Custom Design Upload */}
+          <DesignUpload
+            onDesignChange={setCustomDesign}
+            initialDesign={null}
+            disabled={!selectedWarehouse}
+            productImage={selectedVariant?.thumbnail || product.thumbnail}
+          />
 
           <Separator />
 

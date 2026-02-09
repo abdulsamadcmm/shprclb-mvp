@@ -1,4 +1,5 @@
-import { MapPin } from "lucide-react";
+import { MapPin, Image as ImageIcon } from "lucide-react";
+import { Badge } from "@/components/ui/badge";
 import type { OrderLineItem } from "@/lib/api";
 
 interface WarehouseFulfillmentProps {
@@ -75,6 +76,31 @@ export function WarehouseFulfillment({
                   {formatPrice(item.metadata?.unit_price || item.unit_price, currencyCode)} each
                 </span>
               </div>
+
+              {/* Custom Design Display */}
+              {item.metadata?.custom_design && (
+                <div className="mt-3 pt-3 border-t space-y-2">
+                  <div className="flex items-center gap-2">
+                    <ImageIcon className="h-4 w-4 text-muted-foreground" />
+                    <Badge variant="secondary" className="text-xs">
+                      Custom Design: {item.metadata.custom_design.placement === 'front' ? 'Front' : 'Back'}
+                    </Badge>
+                  </div>
+                  <div className="rounded-lg overflow-hidden bg-muted border">
+                    <img
+                      src={item.metadata.custom_design.file_url.startsWith('http') 
+                        ? item.metadata.custom_design.file_url
+                        : `${process.env.NEXT_PUBLIC_MEDUSA_URL || 'http://localhost:9000'}${item.metadata.custom_design.file_url}`
+                      }
+                      alt={`Custom design for ${item.metadata.custom_design.placement}`}
+                      className="w-full h-auto max-h-32 object-contain"
+                      onError={(e) => {
+                        (e.target as HTMLImageElement).style.display = 'none';
+                      }}
+                    />
+                  </div>
+                </div>
+              )}
             </div>
 
             {/* Item Total */}
